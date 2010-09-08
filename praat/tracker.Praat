@@ -8,6 +8,8 @@ form Test
 	word objectName PH06-2-1-AB-Jean
 	word vowelToMeasure AY1
 	word outputfile ~/ay.txt
+	real maxformant 5500
+	real nformants 5
 endform
 
 select TextGrid 'objectName$'
@@ -71,7 +73,7 @@ for i from 1 to nint
 		Rename... jawn
 
 		# These two commands work much faster than looping over a sound file
-		To Formant (burg)... 0 5 5000 0.025 50
+		To Formant (burg)... 0 'nformants' 'maxformant' 0.025 50
 		x$ = List... 0 1 6 0 3 1 2 1
 		
 		#This whole block of code simply strips out the column headers of the formant list
