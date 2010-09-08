@@ -18,6 +18,10 @@ nint= Get number of intervals... 1
 #This is a counter to keep tokens of the same lexical item distinct
 id = 1
 
+header$ = "Time.s'tab$'nformants'tab$'F1'tab$'B1'tab$'F2'tab$'B2'tab$'F3'tab$'B3'tab$'F4'tab$'B4'tab$'F5'tab$'B5'tab$'Word'tab$'ID'tab$'Transcription'tab$'Index"
+fileappend 'outputfile$' 'header$'
+
+
 for i from 1 to nint
 	lab$ = Get label of interval... 1 i
  	if lab$ = vowelToMeasure$
