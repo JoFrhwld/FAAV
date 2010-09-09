@@ -3,6 +3,9 @@
 ##		
 ##	To formant (burg)...
 ##	List...
+##
+## It assumes a 2 tiered text grid from the P2FA forced aligner. It should work with any two
+## tiered text grid where the first tier is a phone transcription, and the second tier is a word transcription
 
 form Test
 	word objectName PH06-2-1-AB-Jean
