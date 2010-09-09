@@ -1,0 +1,5 @@
+python/
+	-recode.py
+		*allow for transcription within input file
+		*allow selected syllable to be defined within input file
+		*change output to append recoded information onto original file
