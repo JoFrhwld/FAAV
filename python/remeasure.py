@@ -28,8 +28,8 @@ for line in lines:
     vowel = line[0]
     F1 = float(line[4])
     F2 = float(line[5])
-    B1 = math.log(float(line[7]))
-    B2 = math.log(float(line[8]))
+    B1 = math.log1p(float(line[7]))
+    B2 = math.log1p(float(line[8]))
     Dur = math.log1p(float(line[13]))
 
     
