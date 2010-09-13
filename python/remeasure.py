@@ -14,10 +14,6 @@ lines = f.readlines()
 f.close()
 sys.stderr.write("File read\n")
 
-
-
-
-
 vowels = {}
 
 lines = [line.rstrip().split("\t") for line in lines]
@@ -28,9 +24,9 @@ for line in lines:
     vowel = line[0]
     F1 = float(line[4])
     F2 = float(line[5])
-    B1 = math.log1p(float(line[7]))
-    B2 = math.log1p(float(line[8]))
-    Dur = math.log1p(float(line[13]))
+    B1 = math.log(float(line[7]))
+    B2 = math.log(float(line[8]))
+    Dur = math.log(float(line[13]))
 
     
     if vowel in vowels:
@@ -83,8 +79,8 @@ for line in lines:
             if len(poles[i][j]) >= 2:
                 F1 = poles[i][j][0]
                 F2 = poles[i][j][1]
-                B1 = math.log1p(bandwidths[i][j][0])
-                B2 = math.log1p(bandwidths[i][j][0])
+                B1 = math.log(bandwidths[i][j][0])
+                B2 = math.log(bandwidths[i][j][0])
     
                 values = [F1, F2, B1, B2, lDur]
     
