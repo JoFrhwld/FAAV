@@ -1,8 +1,25 @@
+Animation/
+	-Specific Projects
+		  *Produce an eyC eyF animation
+		  *Analyze atlas speakers for ay
+	
+	-Code
+		*Write up necessary R code
+		*Must interact with recode.py
+		  
+
+Data Cleanup/
+     -Mathematical definitions of the vowel space
+     		   *See Bill 1
+
+
+
 python/
 	-recode.py
 		*allow for transcription within input file
 		*allow selected syllable to be defined within input file
 		*change output to append recoded information onto original file
 
+	-remeasure.py
 
 Figure out pulling
