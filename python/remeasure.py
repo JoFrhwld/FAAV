@@ -1,6 +1,7 @@
 import ast
 import math
 import rpy2.robjects as robjects
+import rpy2.rinterface as rinterface
 import sys
 import string
 
@@ -88,6 +89,8 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
         Dur = line[13]
         F1orig = line[4]
         F2orig = line[5]
+        B1orig = line[7]
+        B2orig = line[8]
         lDur = math.log(float(Dur))
         
         poles = ast.literal_eval(line[20])
@@ -109,10 +112,16 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
     
                 x = robjects.FloatVector(values)
 
-                dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
-
-                valuesList.append(values)
-                distanceList.append(dist)
+                #If there is only one member of a vowel category,
+                #the covariance matrix will be filled with NAs
+                if vowelCovs[vowel][0] is rinterface.NA_Real:
+                    valuesList.append([F1orig, F2orig, B1orig, B2orig, lDur])
+                    distanceList.append(0)
+                else:
+                    dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
+    
+                    valuesList.append(values)
+                    distanceList.append(dist)
 
         winnerIndex = distanceList.index(min(distanceList))
         bestValues = valuesList[winnerIndex]
