@@ -115,7 +115,7 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
                 #If there is only one member of a vowel category,
                 #the covariance matrix will be filled with NAs
                 if vowelCovs[vowel][0] is rinterface.NA_Real:
-                    valuesList.append([F1orig, F2orig, B1orig, B2orig, lDur])
+                    valuesList.append([float(F1orig), float(F2orig), float(B1orig), float(B2orig), lDur])
                     distanceList.append(0)
                 else:
                     dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
