@@ -1,0 +1,6 @@
+cd = vowel code
+fm = following manner
+fp = following place
+fv = following voice
+ps = preceding segment
+fs = following sequence
