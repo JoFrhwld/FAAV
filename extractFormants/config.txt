@@ -1,0 +1,4 @@
+outputFormat=text
+formantPredictionMethod=mahalanobis
+measurementPointMethod=faav
+nSmoothing=12
