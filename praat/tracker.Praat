@@ -9,8 +9,8 @@
 
 form Test
 	word objectName PH06-2-1-AB-Jean
-	word vowelToMeasure AY1
-	word outputfile ~/ay.txt
+	word vowelToMeasure EY1
+	word outputfile ~/ey.txt
 	real maxformant 5500
 	real nformants 5
 endform
@@ -22,7 +22,7 @@ nint= Get number of intervals... 1
 id = 1
 
 header$ = "Time.s'tab$'nformants'tab$'F1'tab$'B1'tab$'F2'tab$'B2'tab$'F3'tab$'B3'tab$'F4'tab$'B4'tab$'F5'tab$'B5'tab$'Word'tab$'ID'tab$'Transcription'tab$'Index"
-fileappend 'outputfile$' 'header$'
+fileappend 'outputfile$' 'header$''newline$'
 
 
 for i from 1 to nint
