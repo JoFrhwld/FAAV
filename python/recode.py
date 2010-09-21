@@ -1,4 +1,3 @@
-
 def syllabify(w):
     import re
 
@@ -214,177 +213,10 @@ def defSyl(syl,n):
 
     sylinfo = [vowel,str(nfollowing),coda,final,folseg,onset,preseg,thisseg[0],thisseg[1],thisseg[2]]
     return sylinfo
-    
 
-
-import re
-import string
-import sys
-
-args = sys.argv
-tocode = sys.argv[1]
-cmufilename = sys.argv[2]
-
-
-cmuf = open(cmufilename)
-#cmuf = open("cmudict.0.7a.JTFedit2009")
-cmu = {}
-for line in cmuf:
-    line = line.rstrip()
-    if ";;;" not in line:
-        line = line.split("  ")
-        line[1] = line[1].split(" ")
-        abc = re.compile("[A-Z]*")
-        cmu[line[0]] = line[1]
-cmuf.close()
-
-plotnikToCMU={
-    "i":["IH"],
-    "e":["EH"],
-    "ae":["AE","EH"],
-    "aeh":["AE"],
-    "aeBR":["AE"],
-    "o":["AA","AO"],
-    "uh":["AH"],
-    "u":["UH"],
-    "iy":["IY","IH"],
-    "iyC":["IY"],
-    "iyF":["IY"],
-    "ey":["EY","EH"],
-    "eyC":["EY"],
-    "eyF":["EY"],
-    "ay":["AY"],
-    "ayV":["AY"],
-    "ay0":["AY"],
-    "oy":["OY"],
-    "aw":["AW"],
-    "ow":["OW"],
-    "owC":["OW"],
-    "owF":["OW"],
-    "uw":["UW"],
-    "Kuw":["UW"],
-    "Tuw":["UW"],
-    "iw":["UW"],
-    "ah":["AA"],
-    "oh":["AO","AA"],
-    "iyr":["IH"],
-    "eyr":["EH"],
-    "ahr":["AA"],
-    "ohr":["AO"],
-    "owr":["AO"],
-    "uwr":["UH"],
-    "*hr":["ER"]
-    }
-folsegcoding = {
-    "AA": "vowel",
-    "AE": "vowel",
-    "AH": "vowel",
-    "AO": "vowel",
-    "AW": "vowel",
-    "AY": "vowel",
-    "B": "stop",
-    "CH": "stop",
-    "D": "stop",
-    "DH": "stop",
-    "EH": "vowel",
-    "ER": "vowel",
-    "EY": "vowel",
-    "F": "fricative",
-    "G": "stop",
-    "HH": "h",
-    "IH": "vowel",
-    "IY": "vowel",
-    "JH": "stop",
-    "K": "stop",
-    "L": "l",
-    "M": "nasal",
-    "N": "nasal",
-    "NG": "nasal",
-    "OW": "vowel",
-    "OY": "vowel",
-    "P": "stop",
-    "R": "r",
-    "S": "fricative",
-    "SH": "fricative",
-    "T": "stop",
-    "TH": "stop",
-    "UH": "vowel",
-    "UW": "vowel",
-    "V": "fricative",
-    "W": "w",
-    "Y": "y",
-    "Z": "fricative",
-    "ZH": "fricative",
-    "q": "q"
-    }
-
-vowels = re.compile("[AEIOU]")
-folsegs = {}
-
-form = open(tocode)
-#form = open("../anaeformants-clean.txt")
-dig  = re.compile("\d")
-for line in form:
-    line = line.rstrip()
-    if len(line) < 1:
-       
-        break
-    line = line.split("\t")
-    vowel = "AY"
-    
-
-    word = line[0]
-    notinword= re.compile("[\d()]")
-    word = notinword.sub("",word).upper()
-    matchedsyl = "No Match"
-    
+def cmutrans(word, cmu):
     if word in cmu:
-        syls = syllabify(cmu[word])
-        thesyl = 0
-        matchedsyl = "Monosyl"
-        if len(syls) > 1:
-            
-            if vowel in vowel:
-                cmuvowels = ["AY"]
-                found = False
-                for i in range(len(syls)):
-                    
-                    if syls[i][1][0] in cmuvowels and int(syls[i][3][0]) == 1:
-                        matchedsyl =  "Exact"
-                        thesyl = i
-                        found = True
-                        
-                        break
-                if not found:
-                    for i in range(len(syls)):
-                        if syls[i][1][0] in cmuvowels:
-                            matchedsyl = "Vowel"
-                            thesyl = i
-                            found = True
-                            break
-                if not found:
-                    for i in range(len(syls)):
-                        if int(syls[i][3][0]) == 1:
-                            matchedsyl =  "Stress"
-                            thesyl = i
-                            break
-
-        sylinfo = defSyl(syls,thesyl)
-        sylinfo.append(matchedsyl)
-        
-        line = string.join(line, "\t")
-        sylinfo = string.join(sylinfo,"\t")
-        sys.stdout.write(line+"\t"+sylinfo+"\n")
-
-        #print sylinfo
-                
-                
-    
-                    
-        
-            
-        #sys.stdout.write(word)
-        #sys.stdout.write("\n")
+        trans = cmu[word]
     else:
         sys.stderr.write("Please transcribe "+word+" "+vowel+"\n")
         trans = sys.stdin.readline().rstrip().upper()
@@ -414,46 +246,127 @@ for line in form:
             writetrans = string.join(trans," ")
             cmuf2.write(word+"  "+writetrans+"\n")
             cmuf2.close()
-            syls = syllabify(trans)
-            thesyl = 0
+    return(trans)
 
-            matchedsyl = "Monosyl"
-            if len(syls) > 1:
+def readcmu(file):
+    cmuf = open(file)
+    #cmuf = open("cmudict.0.7a.JTFedit2009")
+    cmu = {}
+    for line in cmuf:
+        line = line.rstrip()
+        if ";;;" not in line:
+            line = line.split("  ")
+            line[1] = line[1].split(" ")
+            abc = re.compile("[A-Z]*")
+            cmu[line[0]] = line[1]
+    cmuf.close()
+    return(cmu)
+
+def guesssyl(vowel, syls):
+    thesyl = 0
+    matchedsyl = "Monosyl"
+    if len(syls) > 1:
+        found = False
+        for i in range(len(syls)):
             
-                if vowel in vowel:
-                    cmuvowels = ["AY"]
-                    found = False
-                    for i in range(len(syls)):
-                    
-                        if syls[i][1][0] in cmuvowels and int(syls[i][3][0]) == 1:
-                            matchedsyl =  "Exact"
-                            thesyl = i
-                            found = True
-                        
-                            break
-                    if not found:
-                        for i in range(len(syls)):
-                            if syls[i][1][0] in cmuvowels:
-                                matchedsyl = "Vowel"
-                                thesyl = i
-                                found = True
-                                break
-                    if not found:
-                        for i in range(len(syls)):
-                            if int(syls[i][3][0]) == 1:
-                                matchedsyl =  "Stress"
-                                thesyl = i
-                                break
+            if syls[i][1][0] == vowel and int(syls[i][3][0]) == 1:
+                matchedsyl =  "Exact"
+                thesyl = i
+                found = True
+                
+                break
+    if not found:
+        for i in range(len(syls)):
+            if syls[i][1][0] == vowel:
+                matchedsyl = "Vowel"
+                thesyl = i
+                found = True
+                break
+    if not found:
+        for i in range(len(syls)):
+            if int(syls[i][3][0]) == 1:
+                matchedsyl =  "Stress"
+                thesyl = i
+                break
+    return thesyl, matchedsyl
 
+def findsyl(index, syls):
+    thesyl = 0
+    total = 0
+    for i in range(len(syls)):
+        if total + len(syls[i][0]) + len(syls[i][1]) >= index:
+            thesyl = i
+            break
+        else:
+            total = len(syls[i][0]) + len(syls[i][1]) + len(syls[i][2])
+    return thesyl        
 
-                sylinfo = defSyl(syls,thesyl)
-                sylinfo.append(matchedsyl)
-                line = string.join(line, "\t")
-                sylinfo = string.join(sylinfo,"\t")
-                sys.stdout.write(line+"\t"+sylinfo+"\n")
+import re
+import string
+import sys
 
-    if sylinfo[-3] in folsegs:
-        folsegs[sylinfo[-3]] = folsegs[sylinfo[-3]]+1
+args = sys.argv
+#sys.stderr.write(string.join(args, sep = "\n"))
+tocode = sys.argv[1]
+wordindex = int(sys.argv[2])-1
+vowelindex = int(sys.argv[3])-1
+transindex = sys.argv[4]
+sylindex = sys.argv[5]
+
+if len(transindex) > 2:
+    cmu = readcmu(transindex)
+else:
+    transindex = int(transindex) - 1
+    
+form = open(tocode)
+#form = open("../anaeformants-clean.txt")
+dig  = re.compile("\d")
+header = form.readline().rstrip()
+
+#sylinfo = [vowel,str(nfollowing),coda,final,folseg,onset,preseg,thisseg[0],thisseg[1],thisseg[2]]
+features = "\tVowel2\tFolSyl\tCoda\tFinal\tFolSeg\tOnset\tPreSeg\tPlace\tVoice\tManner"
+
+sys.stdout.write(header+features+"\n")
+for line in form:
+    line = line.rstrip()
+    if len(line) < 1:
+       
+        break
+    line = line.split("\t")
+    #vowel = "AY"
+    
+
+    word = line[wordindex]
+    vowel = line[vowelindex]
+    notinword= re.compile("[\d()]")
+    word = notinword.sub("",word).upper()
+    
+    syls = []
+    if transindex == "cmu":
+        trans = cmutrans(word, cmu)
+        syls = syllabify(trans)
     else:
-        folsegs[sylinfo[-3]] = 1
+        trans = line[transindex].split(" ")
+        syls = syllabify(trans)        
+
+
+    if sylindex == "guess":
+        syl,matched = guesssyl(vowel, syls)
+    else:
+        syl = findsyl(int(sylindex), syls)
+        
+
+    sylinfo = defSyl(syls,syl)
+    line = string.join(line, "\t")
+    sylinfo = string.join(sylinfo,"\t")
+    sys.stdout.write(line+"\t"+sylinfo+"\n")
+
+ 
+    
+
+#                sylinfo = defSyl(syls,thesyl)
+#                sylinfo.append(matchedsyl)
+#                line = string.join(line, "\t")
+#                sylinfo = string.join(sylinfo,"\t")
+#                sys.stdout.write(line+"\t"+sylinfo+"\n")
 

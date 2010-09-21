@@ -9,25 +9,26 @@
 
 form Test
 	word objectName PH06-2-1-AB-Jean
-	word vowelToMeasure EY1
+	word vowelToMeasure EY
 	word outputfile ~/ey.txt
 	real maxformant 5500
 	real nformants 5
 endform
 
+vowelToMeasure2$ = vowelToMeasure$ + "1"
 select TextGrid 'objectName$'
 nint= Get number of intervals... 1
 
 #This is a counter to keep tokens of the same lexical item distinct
 id = 1
 
-header$ = "Time.s'tab$'nformants'tab$'F1'tab$'B1'tab$'F2'tab$'B2'tab$'F3'tab$'B3'tab$'F4'tab$'B4'tab$'F5'tab$'B5'tab$'Word'tab$'ID'tab$'Transcription'tab$'Index"
+header$ = "Time.s'tab$'nformants'tab$'F1'tab$'B1'tab$'F2'tab$'B2'tab$'F3'tab$'B3'tab$'F4'tab$'B4'tab$'F5'tab$'B5'tab$'Vowel'tab$'Word'tab$'ID'tab$'Transcription'tab$'Index"
 fileappend 'outputfile$' 'header$''newline$'
 
 
 for i from 1 to nint
 	lab$ = Get label of interval... 1 i
- 	if lab$ = vowelToMeasure$
+ 	if lab$ = vowelToMeasure2$
 		
 		#These are time points of the vowel
 		beg = Get start point... 1 i
@@ -49,6 +50,7 @@ for i from 1 to nint
 			seg$ = Get label of interval... 1 j
 			trans$ = trans$ + seg$ + " "
 		endfor
+		trans$ = replace_regex$ (trans$, " $", "",0)
 		
 		#Word holds the word itself
 		word$ = Get label of interval... 2 wordint
@@ -71,7 +73,7 @@ for i from 1 to nint
 		indexstr$ = "'index'"
 
 		#wordinfo$ holds the 
-		wordinfo$ = tab$ + word$+tab$+idstr$+tab$+trans$ +tab$+indexstr$ + newline$
+		wordinfo$ = tab$ + vowelToMeasure$+ tab$ + word$+tab$+idstr$+tab$+trans$ +tab$+indexstr$  + newline$
 		
 		
 		# This is the acoustic analysis bit
