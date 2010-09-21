@@ -353,7 +353,9 @@ for line in form:
     if sylindex == "guess":
         syl,matched = guesssyl(vowel, syls)
     else:
-        syl = findsyl(int(sylindex), syls)
+        index = int(line[int(sylindex)-1])
+        syl = findsyl(index, syls)
+       
         
 
     sylinfo = defSyl(syls,syl)
