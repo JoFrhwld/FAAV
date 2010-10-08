@@ -3,7 +3,7 @@
 #################################################################################
 ##       !!! This is NOT the original extractFormants.py file !!!              ##
 ##                                                                             ##
-## Last modified by Ingrid Rosenfelder:  August 9, 2010                        ##
+## Last modified by Ingrid Rosenfelder:  September 9, 2010                     ##
 ## - all comments beginning with a double pound sign ("##")                    ##
 ## - docstrings for all classes and functions                                  ##
 ## - alphabetic ordering outside of main program:                              ##
@@ -29,7 +29,10 @@
 ## - smoothing of formant tracks ( -> parameter nSmoothing in options)         ##
 ## - FAAV measurement procedure:                                               ##
 ##      - AY has 50 ms left padding and is measured at maximum F1              ##
-##      - UW, OW measured at beginning of segment after D, N                   ##
+##      - Tuw measured at beginning of segment                                 ##
+##      - OW, AW measured halfway between beginning of segment and F1 maximum  ##
+##      - EY is measured at maximum F1, but without extra padding              ##
+## - returns F3 and corresponding bandwidth, if possible                       ##
 #################################################################################
 
 
@@ -110,6 +113,8 @@ class VowelMeasurement:
     dur = None          ## duration of vowel
     poles = []          ## original list of poles returned by LPC analysis
     bandwidths = []     ## original list of bandwidths returned by LPC analysis
+    nFormants = None    ## actual formant settings used in the measurement (for Mahalanobis distance method)
+    glide = ''          ## Plotnik glide coding
 
 
 class Word:
@@ -181,7 +186,7 @@ def addStyleCodes(words, tg):
     i = 0
     for s in tg[-1]:  ## iterate over style tier entries
         while i < len(words) and (words[i].xmin >= s.xmin() and words[i].xmax <= s.xmax()):
-            if s.mark().upper() in ["R", "N", "L", "G", "S", "K", "T", "C", "W", "M"]:
+            if s.mark().upper() in ["R", "N", "L", "G", "S", "K", "T", "C", "WL", "MP", "RP", "SD"]:
                 words[i].style = s.mark().upper()
             elif s.mark().upper() == "SP":  ## empty intervals
                 pass
@@ -344,6 +349,28 @@ def convertTimes(times, offset):
     return convertedTimes
 
 
+def detectMonophthong(formants, measurementPoint, index):
+    """checks whether the formant tracks indicate a monophthong {m}, or a weak/shortented glide {s}"""
+    ## classify as a monophthong, weak/shortened glide or diphthong according to range of movement of F2:
+    ## if maximum F2 after point of measurement is less than 100 Hz above F2 at point of measurement:  -> monophthong
+    F2atPOM = formants[index][1]
+    maximumF2AfterPOM = max([formants[j][1] for j in range(index, len(formants)) if len(formants[j]) > 1])
+    F2Movement = round(maximumF2AfterPOM - F2atPOM, 3)
+    if F2Movement <= 100:
+        glide = 'm'
+        #print "\tF2 movement is %.0f Hz -> MONOPHTHONG" % F2Movement
+    ## if maximum F2 after point of measurement is between 100-300 Hz above F2 at point of measurement:  -> weak/shortened glide
+    elif 100 < F2Movement <= 300:
+        glide = 's'        
+        #print "\tF2 movement is %.0f Hz -> WEAK GLIDE" % F2Movement
+    ## if maximum F2 after point of measurement is more than 300 Hz above F2 at point of measurement:  -> diphthong
+    else:
+        glide = ''
+        #print "\tF2 movement is %.0f Hz -> DIPHTHONG" % F2Movement        
+    
+    return glide
+
+
 def extractPortion(wavFile, vowelWavFile, beg, end, soundEditor):
     """extracts a single vowel (or any other part) from the main sound file"""
     if soundEditor == 'sox':  ## this is the default setting, since it's faster
@@ -356,64 +383,28 @@ def extractPortion(wavFile, vowelWavFile, beg, end, soundEditor):
 
 def faav(phone, formants, times, intensity):
     """returns the time of measurement according to the FAAV guidelines"""
-    ## measure "AY" at F1 maximum and within 10%-below-maximum-intensity interval
-    if phone.label[:-1] == "AY":
-        ## get intensity cutoff
+    ## get intensity cutoffs for all vowels not measured one third into the vowel
+    if (phone.label[:-1] in ["AY", "EY", "OW", "AW"]) or (phone.label[:-1] == "UW" and phone.cd == "73"):
+        ## get intensity cutoff at 10% below maximum intensity
         beg_cutoff, end_cutoff = getIntensityCutoff(intensity.intensities(), intensity.times())
-        ## make sure we are measuring in the first half of the vowel
-        midpoint = phone.xmin + (phone.xmax - phone.xmin) / 2
-        ## (second condition is to ensure that there are still formants in the selected frames -
-        ## this might not be the case e.g. with a long segment of glottalization/silence included at the beginning of the vowel)
-        if end_cutoff > midpoint and midpoint > beg_cutoff:
-            end_cutoff = midpoint
-        ## exclude cases the intensity maximum is at the end of the segment (because of a following vowel)
-        if beg_cutoff > midpoint:
-            ## in this case, look for new intensity maximum and cutoffs in the first half of the vowel
-            trimmedIntensities, trimmedTimes = trimFormants(intensity.intensities(), intensity.times(), phone.xmin, midpoint)
-            beg_cutoff, end_cutoff = getIntensityCutoff(trimmedIntensities, trimmedTimes)         
-        ## get search interval for F1 maximum
-        trimmedFormants, trimmedTimes = trimFormants(formants, times, beg_cutoff, end_cutoff)        
-        ## get F1 maximum
-        F1 = [f[0] for f in trimmedFormants]
-        i = F1.index(max(F1))
-        measurementPoint = trimmedTimes[i]        
-    ## measure Tuw at the beginning of the segment
-    elif (phone.label[:-1] == "UW" and phone.cd == "73"):
-        ## get intensity cutoff
-        beg_cutoff, end_cutoff = getIntensityCutoff(intensity.intensities(), intensity.times())
-        ## filter out cases where the intensity maximum is at the end of the segment (because of a following vowel)
-        midpoint = phone.xmin + (phone.xmax - phone.xmin) / 2
-        if beg_cutoff > midpoint:
-            ## in this case, look for new intensity maximum and cutoffs in the first half of the vowel
-            trimmedIntensities, trimmedTimes = trimFormants(intensity.intensities(), intensity.times(), phone.xmin, midpoint)
-            beg_cutoff, end_cutoff = getIntensityCutoff(trimmedIntensities, trimmedTimes)         
-        measurementPoint = max([phone.xmin, beg_cutoff])
-    ## measure "OW" halfway between beginning of segment and F1 maximum
-    elif (phone.label[:-1] == "OW"):
-        ## get intensity cutoff
-        beg_cutoff, end_cutoff = getIntensityCutoff(intensity.intensities(), intensity.times())
-        ## make sure we are measuring in the first half of the vowel
-        midpoint = phone.xmin + (phone.xmax - phone.xmin) / 2
-        ## (second condition is to ensure that there are still formants in the selected frames -
-        ## this might not be the case e.g. with a long segment of glottalization/silence included at the beginning of the vowel)
-        if end_cutoff > midpoint and midpoint > beg_cutoff:
-            end_cutoff = midpoint
-        ## exclude cases the intensity maximum is at the end of the segment (because of a following vowel)
-        if beg_cutoff > midpoint:
-            ## in this case, look for new intensity maximum and cutoffs in the first half of the vowel
-            trimmedIntensities, trimmedTimes = trimFormants(intensity.intensities(), intensity.times(), phone.xmin, midpoint)
-            beg_cutoff, end_cutoff = getIntensityCutoff(trimmedIntensities, trimmedTimes)         
-        ## get search interval for F1 maximum
-        trimmedFormants, trimmedTimes = trimFormants(formants, times, beg_cutoff, end_cutoff)        
-        ## get F1 maximum
-        F1 = [f[0] for f in trimmedFormants]
-        i = F1.index(max(F1))
-        maxF1time = trimmedTimes[i]        
-        if maxF1time > phone.xmin:
-            measurementPoint = max([beg_cutoff, phone.xmin + (maxF1time - phone.xmin)/2])
-        else:
-            measurementPoint = max([beg_cutoff, phone.xmin])
-    ## measure all other vowels at 1/3 of the way into the owel's duration        
+        ## modify cutoffs to make sure we are measuring in the first half of the vowel
+        beg_cutoff, end_cutoff = modifyIntensityCutoff(beg_cutoff, end_cutoff, phone, intensity.intensities(), intensity.times())
+
+        ## measure "AY" and "EY" at F1 maximum
+        ## (NOTE:  While "AY" receives extra padding at the beginning to possible go before the segment boundary in the search for an F1 maximum, "EY" does not)
+        if phone.label[:-1] in ["AY", "EY"]:
+            measurementPoint = getTimeOfF1Maximum(formants, times, beg_cutoff, end_cutoff)    
+        ## measure Tuw at the beginning of the segment
+        elif phone.label[:-1] == "UW" and phone.cd == "73":
+            measurementPoint = max([phone.xmin, beg_cutoff])
+        ## measure "OW" halfway between beginning of segment and F1 maximum
+        elif phone.label[:-1] in ["OW", "AW"]:
+            maxF1time = getTimeOfF1Maximum(formants, times, beg_cutoff, end_cutoff)       
+            if maxF1time > phone.xmin:
+                measurementPoint = max([beg_cutoff, phone.xmin + (maxF1time - phone.xmin)/2])
+            else:
+                measurementPoint = max([beg_cutoff, phone.xmin])
+    ## measure all other vowels at 1/3 of the way into the vowel's duration        
     else:    
         measurementPoint = phone.xmin + (phone.xmax - phone.xmin) / 3
 
@@ -495,7 +486,7 @@ def getPadding(phone, windowSize, maxTime):
     if phone.xmin - windowSize < 0:
         padBeg = phone.xmin
     ## extend left padding for AY
-    elif phone.label[:-1] in ["AY", "OW", "UW"]:
+    elif phone.label[:-1] == "AY":
         padBeg = 2 * windowSize
     else:
         padBeg = windowSize
@@ -557,12 +548,12 @@ def getTimeIndex(t, times):
     """gets the index of the nearest time value from an ordered list of times"""
     # the two following cases can happen if a short vowel is at the beginning or end of a file
     if t < times[0]:
-        print "WARNING:  measurement point %f is less than earliest time stamp %f for formant measurements, selecting earliest point as measurement" % (t, times[0])
+        #print "WARNING:  measurement point %f is less than earliest time stamp %f for formant measurements, selecting earliest point as measurement" % (t, times[0])
         # return the index of the first measurement
         return 0
 
     if t > times[-1]:
-        print "WARNING:  measurement point %f is less than latest time stamp %f for formant measurements, selecting latest point as measurement" % (t, times[-1])
+        #print "WARNING:  measurement point %f is less than latest time stamp %f for formant measurements, selecting latest point as measurement" % (t, times[-1])
         # return the index of the last measurement
         return len(times) - 1
 
@@ -577,6 +568,18 @@ def getTimeIndex(t, times):
                 return i
             else:
                 return i - 1
+
+
+def getTimeOfF1Maximum(formants, times, beg_cutoff, end_cutoff):
+    """returns the time at which F1 reaches it maximum (within the cutoff limits)"""
+    ## get search interval for F1 maximum
+    trimmedFormants, trimmedTimes = trimFormants(formants, times, beg_cutoff, end_cutoff)        
+    ## get F1 maximum
+    F1 = [f[0] for f in trimmedFormants]
+    i = F1.index(max(F1))
+    measurementPoint = trimmedTimes[i]
+
+    return measurementPoint
 
 
 def getTransitionLength(minimum, maximum):
@@ -610,9 +613,9 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
     else:   # assume praat here
         if formantPredictionMethod == 'mahalanobis':
             ## adjust maximum formant frequency to speaker sex
-            if speaker.sex == "m":
+            if speaker.sex in ["m", "M", "male", "MALE"]:
                 maxFormant = 5000
-            elif speaker.sex == "f":
+            elif speaker.sex in ["f", "F", "female", "FEMALE"]:
                 maxFormant = 5500
             else:
                 sys.exit("ERROR!  Speaker sex undefined.")
@@ -772,6 +775,7 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
     if formantPredictionMethod == 'mahalanobis':
         selectedpoles = []
         selectedbandwidths = []
+        measurementPoints = []
         # predict F1 and F2 based on the LPC values at this point in time
         for j in range(4):
             ## get point of measurement and corresponding index (closest to point of measurement) according to method specified in config file
@@ -779,18 +783,18 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
             ##        For "lennig", "anae" and "faav", which depend on the curvature of the formant tracks, different results will be obtained for different nFormants settings.
             measurementPoint = getMeasurementPoint(phone, poles[j], times[j], intensity, measurementPointMethod)
             i = getTimeIndex(measurementPoint, times[j])
+            measurementPoints.append((measurementPoint, i))
             selectedpoles.append(poles[j][i])
             selectedbandwidths.append(bandwidths[j][i])
-        f1, f2, b1, b2 = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
-        f3 = ''
-        b3 = ''
+        f1, f2, f3, b1, b2, b3, winnerIndex = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
+        measurementPoint = measurementPoints[winnerIndex][0]
     else:
         measurementPoint = getMeasurementPoint(phone, poles, times, intensity, measurementPointMethod)
         i = getTimeIndex(measurementPoint, times[j])
         ## (changed this so that "poles"/"bandwidths" only reflects measurements made at measurement point -
         ## same as for Mahalanobis distance method)
-        poles = poles[i]
-        bandwidths = bandwidths[i]
+        selectedpoles = [poles[i]]
+        selectedbandwidths = [bandwidths[i]]
         f1 = poles[0]
         f2 = poles[1]
         f3 = poles[2]
@@ -823,9 +827,30 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
     vm.beg = round(phone.xmin, 3)               ## beginning of vowel (rounded to msec)
     vm.end = round(phone.xmax, 3)               ## end of vowel (rounded to msec)
     vm.dur = round(phone.xmax - phone.xmin, 3)  ## duration of vowel (rounded to msec)
-    vm.poles = poles                            ## original poles returned by LPC analysis
-    vm.bandwidths = bandwidths                  ## original bandwidths returned by LPC analysis
+    vm.poles = selectedpoles                    ## original poles returned by LPC analysis
+    vm.bandwidths = selectedbandwidths          ## original bandwidths returned by LPC analysis
+    if formantPredictionMethod == 'mahalanobis':
+        vm.nFormants = winnerIndex + 3          ## actual formant settings used in the analysis
+        if phone.label[:-1] == "AY":
+            vm.glide = detectMonophthong(poles[winnerIndex], measurementPoints[winnerIndex][0], measurementPoints[winnerIndex][1])
     return vm
+
+
+def modifyIntensityCutoff(beg_cutoff, end_cutoff, phone, intensities, times):
+    """modifies initial intensity cutoff to ensure measurement takes place in the first half of the vowel"""
+    midpoint = phone.xmin + (phone.xmax - phone.xmin) / 2
+    ## no matter where the intensity contour drops, we want to measure in the first half of the vowel 
+    ## (second condition is to ensure that there are still formants in the selected frames -
+    ## this might not be the case e.g. with a long segment of glottalization/silence included at the beginning of the vowel)
+    if end_cutoff > midpoint and midpoint > beg_cutoff:
+        end_cutoff = midpoint
+    ## exclude cases the intensity maximum is at the end of the segment (because of a following vowel)
+    if beg_cutoff > midpoint:
+        ## in this case, look for new intensity maximum and cutoffs in the first half of the vowel
+        trimmedIntensities, trimmedTimes = trimFormants(intensities, times, phone.xmin, midpoint)
+        beg_cutoff, end_cutoff = getIntensityCutoff(trimmedIntensities, trimmedTimes)         
+
+    return beg_cutoff, end_cutoff
 
 
 def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHeader):
@@ -838,11 +863,11 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
             ## speaker information
             fw.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.city, speaker.state]))
             fw.write('\n\n')            
-            # print out the header line
-            fw.write('\t'.join(['vowel', 'stress', 'style', 'word', 'F1', 'F2', 'F3', 'B1', 'B2', 'B3', 't', 'beg', 'end', 'dur', 'cd', 'fm', 'fp', 'fv', 'ps', 'fs', 'poles', 'bandwidths']))
+            # header
+            fw.write('\t'.join(['vowel', 'stress', 'word', 'F1', 'F2', 'F3', 'B1', 'B2', 'B3', 't', 'beg', 'end', 'dur', 'cd', 'fm', 'fp', 'fv', 'ps', 'fs', 'style', 'glide', 'nFormants', 'poles', 'bandwidths']))
             fw.write('\n')
         for vm in measurements:
-            fw.write('\t'.join([vm.phone, str(vm.stress), vm.style, vm.word, str(vm.f1), str(vm.f2)]))
+            fw.write('\t'.join([vm.phone, str(vm.stress), vm.word, str(vm.f1), str(vm.f2)]))
             fw.write('\t')
             if vm.f3:
                 fw.write(str(vm.f3))
@@ -852,7 +877,11 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
             if vm.b3:            
                 fw.write(str(vm.b3))
             fw.write('\t')
-            fw.write('\t'.join([str(vm.t), str(vm.beg), str(vm.end), str(vm.dur), vm.cd, vm.fm, vm.fp, vm.fv, vm.ps, vm.fs, ','.join([str(p) for p in vm.poles]), ','.join([str(b) for b in vm.bandwidths])]))
+            fw.write('\t'.join([str(vm.t), str(vm.beg), str(vm.end), str(vm.dur), vm.cd, vm.fm, vm.fp, vm.fv, vm.ps, vm.fs, vm.style, vm.glide]))
+            if vm.nFormants:
+                fw.write(str(vm.nFormants))
+            fw.write('\t')
+            fw.write('\t'.join([','.join([str(p) for p in vm.poles]), ','.join([str(b) for b in vm.bandwidths])]))
             fw.write('\n')
         fw.close()
     ## outputFormat = "plotnik"
@@ -933,18 +962,29 @@ def predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs):
                     ## calculate Mahalanobis distance between x and ANAE mean
                     dist = robjects.r['mahalanobis'](x, means[vowel], covs[vowel])[0]
                     ## append poles and bandwidths to list of values
-                    values.append([x[0], x[1], x[2], x[3]])
+                    ## (if F3 and bandwidth measurements exist, add to list of appended values)
+                    if len(poles) > 2:
+                        values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
+                    else:
+                        values.append([x[0], x[1], x[2], x[3], '', ''])
                     ## append corresponding Mahalanobis distance to list of distances
                     distances.append(dist)
+        ## we need to append something to the distances and values lists so that the winnerIndex still corresponds with nFormants!
+        ## (this is for the case that the selected formant frame only contains F1 - empty string will not be selected as minimum distance)
+        else:   
+            values.append([poles[0], '', bandwidths[0], '', '', ''])
+            distances.append('')
     ## get index for minimum Mahalanobis distance
     winnerIndex = distances.index(min(distances))
     ## get corresponding F1, F2 and bandwidths values
     f1 = values[winnerIndex][0]
     f2 = values[winnerIndex][1]
+    f3 = values[winnerIndex][4]
     b1 = math.exp(values[winnerIndex][2])
     b2 = math.exp(values[winnerIndex][3])
+    b3 = values[winnerIndex][5]
     ## return tuple of measurements
-    return (f1, f2, b1, b2)
+    return (f1, f2, f3, b1, b2, b3, winnerIndex)
 
 
 def processInput(wavInput, tgInput, output):
