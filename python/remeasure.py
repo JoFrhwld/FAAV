@@ -32,11 +32,11 @@ def createVowelDictionary(lines, vowelindex):
 
     for line in lines:
         vowel = line[vowelindex]
-        F1 = float(line[4])
-        F2 = float(line[5])
-        B1 = math.log(float(line[7]))
-        B2 = math.log(float(line[8]))
-        Dur = math.log(float(line[13]))
+        F1 = float(line[3])
+        F2 = float(line[4])
+        B1 = math.log(float(line[6]))
+        B2 = math.log(float(line[7]))
+        Dur = math.log(float(line[12]))
 
     
         if vowel in vowels:
@@ -83,30 +83,30 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
         CMUvowel = line[0]
         vowel= line[vowelindex]
         stress = line[1]
-        word = line[3]
-        beg = line[11]
-        end = line[12]
-        Dur = line[13]
-        F1orig = line[4]
-        F2orig = line[5]
-        B1orig = line[7]
-        B2orig = line[8]
+        word = line[2]
+        beg = line[10]
+        end = line[11]
+        Dur = line[12]
+        F1orig = line[3]
+        F2orig = line[4]
+        B1orig = line[6]
+        B2orig = line[7]
         lDur = math.log(float(Dur))
         
-        poles = ast.literal_eval(line[20])
-        bandwidths = ast.literal_eval(line[21])
+        poles = ast.literal_eval(line[21])
+        bandwidths = ast.literal_eval(line[22])
 
         valuesList = []
         distanceList = []
 
         for i in range(len(poles)):
             ## only consider measurement at 1/3 through
-            j = len(poles[i])/3
-            if len(poles[i][j]) >= 2:
-                F1 = poles[i][j][0]
-                F2 = poles[i][j][1]
-                B1 = math.log(bandwidths[i][j][0])
-                B2 = math.log(bandwidths[i][j][0])
+            #j = len(poles[i])/3
+            if len(poles[i]) >= 2:
+                F1 = poles[i][0]
+                F2 = poles[i][1]
+                B1 = math.log(bandwidths[i][0])
+                B2 = math.log(bandwidths[i][0])
     
                 values = [F1, F2, B1, B2, lDur]
     
@@ -127,7 +127,7 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
         bestValues = valuesList[winnerIndex]
         bestValuesString = [repr(x) for x in bestValues]
 
-        info = [CMUvowel, vowel, stress, word, beg, end, Dur, F1orig, F2orig, string.join(line[15:20], "\t")]
+        info = [CMUvowel, vowel, stress, word, beg, end, Dur, F1orig, F2orig, string.join(line[13:21], "\t")]
         infoLine = string.join(info, "\t")
         valuesLine = string.join(bestValuesString, "\t")
         
@@ -139,8 +139,9 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
 
 ## Main Program Starts Here
 #Define some constants
-file = "/Users/joseffruehwald/Documents/Classes/Fall_10/misc/FAAV/extractFormants_modified/PH06-2-1-AB-Jean.formants"
-vowelindex = 14
+#file = "/Users/joseffruehwald/Documents/Classes/Fall_10/misc/FAAV/extractFormants_modified/PH06-2-1-AB-Jean.formants"
+file = sys.argv[1]
+vowelindex = 13
 
 lines = loadfile(file)
 vowels = createVowelDictionary(lines, vowelindex)
