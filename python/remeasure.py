@@ -34,18 +34,31 @@ def createVowelDictionary(lines, vowelindex):
         vowel = line[vowelindex]
         F1 = float(line[3])
         F2 = float(line[4])
+#        if line[5] != "":
+#            F3 = float(line[5])
+#        else
         B1 = math.log(float(line[6]))
         B2 = math.log(float(line[7]))
+#        B3 = math.log(float(line[8]))
         Dur = math.log(float(line[12]))
+        
 
     
         if vowel in vowels:
-            vowels[vowel].append([F1, F2, B1, B2, Dur])
+#            vowels[vowel].append([F1, F2,F3,  B1, B2, B3, Dur])
+            vowels[vowel].append([F1, F2,  B1, B2, Dur])
         else:
+#            vowels[vowel] = [[F1, F2, F3, B1, B2, B3, Dur]]
             vowels[vowel] = [[F1, F2, B1, B2, Dur]]
 
     sys.stderr.write("Vowel dictionary created\n")
     return vowels
+
+
+
+    
+
+
 
 def calculateVowelMeans(vowels):
     """
@@ -73,6 +86,47 @@ def calculateVowelMeans(vowels):
     return vowelMeans, vowelCovs
 
 
+
+
+def excludeOutliers(lines, vowelindex, vowelMeans, vowelCovs):
+    """
+    Finds outliers and excludes them.
+    """
+
+    outlines = []
+    for line in lines:
+        CMUvowel = line[0]
+        vowel= line[vowelindex]
+        stress = line[1]
+        word = line[2]
+        beg = line[10]
+        end = line[11]
+        Dur = line[12]
+        F1orig = float(line[3])
+        F2orig = float(line[4])
+#        F3orig = line[5]
+        B1orig = math.log(float(line[6]))
+        B2orig = math.log(float(line[7]))
+#        B3orig = line[8]
+        lDur = math.log(float(Dur))
+
+        values = [F1orig, F2orig, B1orig, B2orig, lDur]
+        x = robjects.FloatVector(values)
+
+
+        if vowelCovs[vowel][0] is rinterface.NA_Real:
+            outlines.append(line)
+        else:
+            dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
+            #sys.stderr.write(repr(dist))
+            #sys.stderr.write("\n")
+            if dist <= 2:
+                #sys.stderr.write("Inlier\n")
+                outlines.append(line)
+                
+    
+    return(outlines)
+
 def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
     """
     Predicts F1 and F2 from the speaker's own vowel distributions based on the mahalanobis distance.
@@ -89,8 +143,10 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
         Dur = line[12]
         F1orig = line[3]
         F2orig = line[4]
+#        F3orig = line[5]
         B1orig = line[6]
         B2orig = line[7]
+#        B3orig = line[8]
         lDur = math.log(float(Dur))
         
         poles = ast.literal_eval(line[21])
@@ -105,23 +161,30 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
             if len(poles[i]) >= 2:
                 F1 = poles[i][0]
                 F2 = poles[i][1]
+#                F3 = poles[i][2]
                 B1 = math.log(bandwidths[i][0])
-                B2 = math.log(bandwidths[i][0])
+                B2 = math.log(bandwidths[i][1])
+#                B3 = math.log(bandwidths[i][2])
     
+#                values = [F1, F2, F3, B1, B2, B3, lDur]
                 values = [F1, F2, B1, B2, lDur]
     
                 x = robjects.FloatVector(values)
 
                 #If there is only one member of a vowel category,
                 #the covariance matrix will be filled with NAs
-                if vowelCovs[vowel][0] is rinterface.NA_Real:
+                if vowel in vowelCovs:
+                    if vowelCovs[vowel][0] is rinterface.NA_Real:
+                        valuesList.append([float(F1orig), float(F2orig), float(B1orig), float(B2orig), lDur])
+                        distanceList.append(0)
+                    else:
+                        dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
+    
+                        valuesList.append(values)
+                        distanceList.append(dist)
+                else:
                     valuesList.append([float(F1orig), float(F2orig), float(B1orig), float(B2orig), lDur])
                     distanceList.append(0)
-                else:
-                    dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
-    
-                    valuesList.append(values)
-                    distanceList.append(dist)
 
         winnerIndex = distanceList.index(min(distanceList))
         bestValues = valuesList[winnerIndex]
@@ -147,8 +210,10 @@ lines = loadfile(file)
 vowels = createVowelDictionary(lines, vowelindex)
 vowelMeans, vowelCovs = calculateVowelMeans(vowels)
 
+
+#inlines = excludeOutliers(lines, vowelindex, vowelMeans, vowelCovs)
+#invowels = createVowelDictionary(inlines, vowelindex)
+#vowelMeans, vowelCovs = calculateVowelMeans(invowels)
+
+
 repredictF1F2(lines, vowelindex, vowelMeans, vowelCovs)
-
-    
-
-
