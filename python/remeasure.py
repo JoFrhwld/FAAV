@@ -54,8 +54,43 @@ def createVowelDictionary(lines, vowelindex):
     sys.stderr.write("Vowel dictionary created\n")
     return vowels
 
+def excludeOutliers(vowels, vowelMeans, vowelCovs):
+    """
+    Finds outliers and excludes them.
+    """
+    outvowels = {}
+    for vowel in vowels:
+        ntokens = len(vowels[vowel])
+        if ntokens >= 7:
+            outlie = 2
+            outvowels[vowel] = pruneVowels(vowels, vowel, vowelMeans, vowelCovs, outlie)
+        else:
+            outvowels[vowel] = vowels[vowel]
+        
+    return(outvowels)
 
 
+def pruneVowels(vowels, vowel, vowelMeans, vowelCovs, outlie):
+    """
+    Tries to prune outlier vowels, making sure enough tokens are left to calculate mahalanobis distance.
+    """
+    enough = False
+       
+    while not enough:
+        outtokens = [ ]
+        for token in vowels[vowel]:
+            x = robjects.FloatVector(token)
+            dist = robjects.r['mahalanobis'](x, vowelMeans[vowel], vowelCovs[vowel])[0]
+            if dist <= outlie:
+                outtokens.append(token)
+        if len(outtokens) >= 7:
+            enough = True
+        else:
+            outlie = outlie + 0.5
+    
+    return(outtokens)
+            
+    
     
 
 
@@ -88,44 +123,8 @@ def calculateVowelMeans(vowels):
 
 
 
-def excludeOutliers(lines, vowelindex, vowelMeans, vowelCovs):
-    """
-    Finds outliers and excludes them.
-    """
 
-    outlines = []
-    for line in lines:
-        CMUvowel = line[0]
-        vowel= line[vowelindex]
-        stress = line[1]
-        word = line[2]
-        beg = line[10]
-        end = line[11]
-        Dur = line[12]
-        F1orig = float(line[3])
-        F2orig = float(line[4])
-#        F3orig = line[5]
-        B1orig = math.log(float(line[6]))
-        B2orig = math.log(float(line[7]))
-#        B3orig = line[8]
-        lDur = math.log(float(Dur))
-
-        values = [F1orig, F2orig, B1orig, B2orig, lDur]
-        x = robjects.FloatVector(values)
-
-
-        if vowelCovs[vowel][0] is rinterface.NA_Real:
-            outlines.append(line)
-        else:
-            dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
-            #sys.stderr.write(repr(dist))
-            #sys.stderr.write("\n")
-            if dist <= 2:
-                #sys.stderr.write("Inlier\n")
-                outlines.append(line)
-                
     
-    return(outlines)
 
 def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
     """
@@ -173,6 +172,7 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
 
                 #If there is only one member of a vowel category,
                 #the covariance matrix will be filled with NAs
+                sys.stderr.write(vowel+"\n")
                 if vowel in vowelCovs:
                     if vowelCovs[vowel][0] is rinterface.NA_Real:
                         valuesList.append([float(F1orig), float(F2orig), float(B1orig), float(B2orig), lDur])
@@ -211,9 +211,7 @@ vowels = createVowelDictionary(lines, vowelindex)
 vowelMeans, vowelCovs = calculateVowelMeans(vowels)
 
 
-#inlines = excludeOutliers(lines, vowelindex, vowelMeans, vowelCovs)
-#invowels = createVowelDictionary(inlines, vowelindex)
-#vowelMeans, vowelCovs = calculateVowelMeans(invowels)
-
+invowels = excludeOutliers(vowels, vowelMeans, vowelCovs)
+vowelMeans, vowelCovs = calculateVowelMeans(invowels)
 
 repredictF1F2(lines, vowelindex, vowelMeans, vowelCovs)
