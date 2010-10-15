@@ -58,15 +58,16 @@ def excludeOutliers(vowels, vowelMeans, vowelCovs):
     """
     Finds outliers and excludes them.
     """
+    sys.stderr.write("Excluding outlying vowels...")
     outvowels = {}
     for vowel in vowels:
         ntokens = len(vowels[vowel])
         if ntokens >= 7:
-            outlie = 2
+            outlie = 4.75
             outvowels[vowel] = pruneVowels(vowels, vowel, vowelMeans, vowelCovs, outlie)
         else:
             outvowels[vowel] = vowels[vowel]
-        
+    sys.stderr.write("excluded.\n")
     return(outvowels)
 
 
@@ -131,21 +132,56 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
     Predicts F1 and F2 from the speaker's own vowel distributions based on the mahalanobis distance.
     """
     sys.stderr.write("Finding best measurements...")
-    sys.stdout.write("\n\nCMUVowel\tVowel\tStress\tWord\tbeg\tend\tdur\tOriginalF1\tOriginalF2\tfm\tfp\tfv\tps\tfs\tF1\tF2\tlogB1\tlogB2\tlogDur\n")
+    #sys.stdout.write("\n\nCMUVowel\tVowel\tStress\tWord\tbeg\tend\tdur\tOriginalF1\tOriginalF2\tOriginalF3\tOriginalB1\tOriginalB2\tOriginalB3\tfm\tfp\tfv\tps\tfs\tF1\tF2\tlogB1\tlogB2\tlogDur\n")
+    colnames = ["CMUVowel",
+                "Vowel",
+                "Stress",
+                "Word",
+                "t",
+                "beg",
+                "end",
+                "dur",
+                "OriginalF1",
+                "OriginalF2",
+                "OriginalF3",
+                "OriginalB1",
+                "OriginalB2",
+                "OriginalB3",
+                "dist",
+                "cd",
+                "fm",
+                "fp",
+                "fv",
+                "ps",
+                "fs",
+                "style",
+                "glide",
+                "F1",
+                "F2",
+                "F3",
+                "logB1",
+                "logB2",
+                "logB3",
+                "logDur"
+                ]
+    colnamesstring = string.join(colnames, "\t")
+    sys.stdout.write("\n\n"+colnamesstring+"\n")
+    
     for line in lines:
         CMUvowel = line[0]
         vowel= line[vowelindex]
         stress = line[1]
         word = line[2]
+        t = line[9]
         beg = line[10]
         end = line[11]
         Dur = line[12]
         F1orig = line[3]
         F2orig = line[4]
-#        F3orig = line[5]
+        F3orig = line[5]
         B1orig = line[6]
         B2orig = line[7]
-#        B3orig = line[8]
+        B3orig = line[8]
         lDur = math.log(float(Dur))
         
         poles = ast.literal_eval(line[21])
@@ -155,49 +191,56 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
         distanceList = []
 
         for i in range(len(poles)):
-            ## only consider measurement at 1/3 through
-            #j = len(poles[i])/3
             if len(poles[i]) >= 2:
                 F1 = poles[i][0]
                 F2 = poles[i][1]
-#                F3 = poles[i][2]
+                if len(poles[i]) >= 3:
+                    F3 = poles[i][2]
+                else:
+                    F3 = "NA"
                 B1 = math.log(bandwidths[i][0])
                 B2 = math.log(bandwidths[i][1])
-#                B3 = math.log(bandwidths[i][2])
+                if len(bandwidths[i]) >= 3:
+                    B3 = math.log(bandwidths[i][2])
+                else:
+                    B3 = "NA"
+
     
 #                values = [F1, F2, F3, B1, B2, B3, lDur]
                 values = [F1, F2, B1, B2, lDur]
+                outvalues = [F1, F2, F3, B1, B2, B3, lDur]
     
                 x = robjects.FloatVector(values)
 
-                #If there is only one member of a vowel category,
-                #the covariance matrix will be filled with NAs
-                sys.stderr.write(vowel+"\n")
+                ##If there is only one member of a vowel category,
+                ##the covariance matrix will be filled with NAs
+                #sys.stderr.write(vowel+"\n")
                 if vowel in vowelCovs:
                     if vowelCovs[vowel][0] is rinterface.NA_Real:
-                        valuesList.append([float(F1orig), float(F2orig), float(B1orig), float(B2orig), lDur])
+                        valuesList.append([float(F1orig), float(F2orig), float(F2orig), float(B1orig), float(B2orig), float(B3orig),lDur])
                         distanceList.append(0)
                     else:
                         dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
     
-                        valuesList.append(values)
+                        valuesList.append(outvalues)
                         distanceList.append(dist)
                 else:
-                    valuesList.append([float(F1orig), float(F2orig), float(B1orig), float(B2orig), lDur])
+                    valuesList.append([float(F1orig), float(F2orig), float(F2orig), float(B1orig), float(B2orig), float(B3orig),lDur])
                     distanceList.append(0)
 
         winnerIndex = distanceList.index(min(distanceList))
+        dist = repr(min(distanceList))
         bestValues = valuesList[winnerIndex]
         bestValuesString = [repr(x) for x in bestValues]
 
-        info = [CMUvowel, vowel, stress, word, beg, end, Dur, F1orig, F2orig, string.join(line[13:21], "\t")]
+        info = [CMUvowel, vowel, stress, word, t, beg, end, Dur, F1orig, F2orig, F3orig,B1orig, B2orig, B3orig, dist, string.join(line[13:21], "\t")]
         infoLine = string.join(info, "\t")
         valuesLine = string.join(bestValuesString, "\t")
         
 
         sys.stdout.write(infoLine+"\t")
         sys.stdout.write(valuesLine+"\n")
-    sys.stderr.write("Done!\n   ")
+    sys.stderr.write("Done!\n")
 
 
 ## Main Program Starts Here
