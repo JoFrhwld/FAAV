@@ -225,27 +225,34 @@ def cmutrans(word, cmu):
         trans = trans.split(" ")
         valid = True
         transerror = []
+        
+        valid = len(trans) > 1
+        
+            
 
-        for j in trans:
-            if dig.sub("",j) not in folsegcoding:
-                valid = False
-                transerror.append(j+" Not Part of CMU Character Set")
-            if vowels.match(j) and not dig.search(j):
-                valid = False
-                transerror.append("Stress Missing on "+j)
-            if not valid:
-                for err in transerror:
-                    sys.stderr.write("Error: "+err+"\n")
-                break
+        #for j in trans:
+        #    if dig.sub("",j) not in folsegcoding:
+        #        valid = False
+        #        transerror.append(j+" Not Part of CMU Character Set")
+        #    if vowels.match(j) and not dig.search(j):
+        #        valid = False
+        #        transerror.append("Stress Missing on "+j)
+        #    if not valid:
+        #        for err in transerror:
+        #            sys.stderr.write("Error: "+err+"\n")
+        #        break
         if valid:
-            print "valid!"
+           
             cmu[word] = trans
+        else:
+            trans = None
 
-            cmuf2 = open(cmufilename,'a')
+        #    cmuf2 = open(cmufilename,'a')
             #cmuf = open('cmudict.0.7a.JTFedit2009','a')
-            writetrans = string.join(trans," ")
-            cmuf2.write(word+"  "+writetrans+"\n")
-            cmuf2.close()
+        #    writetrans = string.join(trans," ")
+        #    cmuf2.write(word+"  "+writetrans+"\n")
+        #    cmuf2.close()
+      
     return(trans)
 
 def readcmu(file):
@@ -275,19 +282,19 @@ def guesssyl(vowel, syls):
                 found = True
                 
                 break
-    if not found:
-        for i in range(len(syls)):
-            if syls[i][1][0] == vowel:
-                matchedsyl = "Vowel"
-                thesyl = i
-                found = True
-                break
-    if not found:
-        for i in range(len(syls)):
-            if int(syls[i][3][0]) == 1:
-                matchedsyl =  "Stress"
-                thesyl = i
-                break
+            if not found:
+                for i in range(len(syls)):
+                    if syls[i][1][0] == vowel:
+                        matchedsyl = "Vowel"
+                        thesyl = i
+                        found = True
+                        break
+            if not found:
+                for i in range(len(syls)):
+                    if int(syls[i][3][0]) == 1:
+                        matchedsyl =  "Stress"
+                        thesyl = i
+                        break
     return thesyl, matchedsyl
 
 def findsyl(index, syls):
@@ -315,6 +322,7 @@ sylindex = sys.argv[5]
 
 if len(transindex) > 2:
     cmu = readcmu(transindex)
+    transindex = "cmu"
 else:
     transindex = int(transindex) - 1
     
@@ -344,21 +352,32 @@ for line in form:
     syls = []
     if transindex == "cmu":
         trans = cmutrans(word, cmu)
-        syls = syllabify(trans)
+        if trans is not None:
+            syls = syllabify(trans)
+        else:
+            syls = None
     else:
         trans = line[transindex].split(" ")
         syls = syllabify(trans)        
 
 
     if sylindex == "guess":
-        syl,matched = guesssyl(vowel, syls)
+        if trans is not None:
+            syl,matched = guesssyl(vowel, syls)
+        else:
+            syl = 0
+            matched = 0
     else:
         index = int(line[int(sylindex)-1])
         syl = findsyl(index, syls)
        
         
 
-    sylinfo = defSyl(syls,syl)
+    if trans is not None:
+        sylinfo = defSyl(syls,syl)
+    else:
+        sylinfo = ["","","","","","","","","",""]
+        
     line = string.join(line, "\t")
     sylinfo = string.join(sylinfo,"\t")
     sys.stdout.write(line+"\t"+sylinfo+"\n")

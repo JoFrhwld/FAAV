@@ -62,7 +62,7 @@ def excludeOutliers(vowels, vowelMeans, vowelCovs):
     outvowels = {}
     for vowel in vowels:
         ntokens = len(vowels[vowel])
-        if ntokens >= 7:
+        if ntokens >= 10:
             outlie = 4.75
             outvowels[vowel] = pruneVowels(vowels, vowel, vowelMeans, vowelCovs, outlie)
         else:
@@ -84,7 +84,7 @@ def pruneVowels(vowels, vowel, vowelMeans, vowelCovs, outlie):
             dist = robjects.r['mahalanobis'](x, vowelMeans[vowel], vowelCovs[vowel])[0]
             if dist <= outlie:
                 outtokens.append(token)
-        if len(outtokens) >= 7:
+        if len(outtokens) >= 10:
             enough = True
         else:
             outlie = outlie + 0.5
@@ -127,7 +127,7 @@ def calculateVowelMeans(vowels):
 
     
 
-def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
+def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs,vowels):
     """
     Predicts F1 and F2 from the speaker's own vowel distributions based on the mahalanobis distance.
     """
@@ -148,6 +148,7 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
                 "OriginalB2",
                 "OriginalB3",
                 "dist",
+                "nFormants",
                 "cd",
                 "fm",
                 "fp",
@@ -189,6 +190,7 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
 
         valuesList = []
         distanceList = []
+        nFormantsList = []
 
         for i in range(len(poles)):
             if len(poles[i]) >= 2:
@@ -204,7 +206,8 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
                     B3 = math.log(bandwidths[i][2])
                 else:
                     B3 = "NA"
-
+                
+                nFormants = len(poles[i])
     
 #                values = [F1, F2, F3, B1, B2, B3, lDur]
                 values = [F1, F2, B1, B2, lDur]
@@ -217,23 +220,32 @@ def repredictF1F2(lines,vowelindex, vowelMeans, vowelCovs):
                 #sys.stderr.write(vowel+"\n")
                 if vowel in vowelCovs:
                     if vowelCovs[vowel][0] is rinterface.NA_Real:
-                        valuesList.append([float(F1orig), float(F2orig), float(F2orig), float(B1orig), float(B2orig), float(B3orig),lDur])
+                        valuesList.append([float(F1orig), float(F2orig), float(F2orig), math.log(float(B1orig)), math.log(float(B2orig)), math.log(float(B3orig)),lDur])
                         distanceList.append(0)
+                        nFormantsList.append(nFormants)
+                    elif len(vowels[vowel]) < 7:
+                        valuesList.append([float(F1orig), float(F2orig), float(F2orig), math.log(float(B1orig)), math.log(float(B2orig)), math.log(float(B3orig)),lDur])
+                        distanceList.append(0)
+                        nFormantsList.append(nFormants)
                     else:
                         dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]
     
                         valuesList.append(outvalues)
                         distanceList.append(dist)
+                        nFormantsList.append(nFormants)
                 else:
-                    valuesList.append([float(F1orig), float(F2orig), float(F2orig), float(B1orig), float(B2orig), float(B3orig),lDur])
+                    valuesList.append([float(F1orig), float(F2orig), float(F2orig), math.log(float(B1orig)), math.log(float(B2orig)), math.log(float(B3orig)),lDur])
                     distanceList.append(0)
+                    nFormantsList.append(nFormants)
 
         winnerIndex = distanceList.index(min(distanceList))
         dist = repr(min(distanceList))
         bestValues = valuesList[winnerIndex]
+        bestnFormants = nFormantsList[winnerIndex]
+        bestnFormantsString = repr(bestnFormants)
         bestValuesString = [repr(x) for x in bestValues]
 
-        info = [CMUvowel, vowel, stress, word, t, beg, end, Dur, F1orig, F2orig, F3orig,B1orig, B2orig, B3orig, dist, string.join(line[13:21], "\t")]
+        info = [CMUvowel, vowel, stress, word, t, beg, end, Dur, F1orig, F2orig, F3orig,B1orig, B2orig, B3orig, dist, bestnFormantsString, string.join(line[13:21], "\t")]
         infoLine = string.join(info, "\t")
         valuesLine = string.join(bestValuesString, "\t")
         
@@ -257,4 +269,4 @@ vowelMeans, vowelCovs = calculateVowelMeans(vowels)
 invowels = excludeOutliers(vowels, vowelMeans, vowelCovs)
 vowelMeans, vowelCovs = calculateVowelMeans(invowels)
 
-repredictF1F2(lines, vowelindex, vowelMeans, vowelCovs)
+repredictF1F2(lines, vowelindex, vowelMeans, vowelCovs, vowels)
