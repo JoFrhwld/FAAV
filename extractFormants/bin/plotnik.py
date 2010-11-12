@@ -1,7 +1,7 @@
 ########################################################################################
 ##                  !!! This is NOT the original plotnik.py file !!!                  ##
 ##                                                                                    ##
-## Last modified by Ingrid Rosenfelder:  June 1, 2010                                 ##
+## Last modified by Ingrid Rosenfelder:  October 7, 2010                              ##
 ## - mostly comments (all comment beginning with a double pound sign ("##"))          ##
 ## - some closing of file objects                                                     ##
 ## - docstrings for all classes and functions                                         ##
@@ -10,8 +10,10 @@
 ##    2. classes                                                                      ##
 ##    3. functions                                                                    ##
 ## - modified outputPlotnikFile:                                                      ##
-##    + style coding                                                                  ##
-##    + original LPC measurement values (poles and bandwidths)                        ##
+##    + style coding (converted to corresponding Plotnik codes)                       ##
+##    + [original LPC measurement values (poles and bandwidths) - commented out]      ##                
+##    + nFormants selected (between slashes)                                          ##
+## - dictionary STYLES (letters vs. Plotnik codes)                                    ##
 ########################################################################################
 
 import sys
@@ -34,6 +36,10 @@ MANNER = {'s':'1', 'a':'2', 'f':'3', 'n':'4', 'l':'5', 'r':'6'}
 PLACE = {'l':'1', 'a':'4', 'p':'5', 'b':'2', 'd':'3', 'v':'6'}
 VOICE = {'-':'1', '+':'2'}
 
+## style codes
+STYLES = {"R":"2", "N":"1", "L":"2", "G":"1", "S":"1", "K":"1", "T":"1", "C":"2", "WL":"6", "MP":"7", "RP":"5", "SD":"4"}
+## Plotnik vowel classes (in the order that they appear in the Plotnik side bar)
+PLOTNIKCODES = ['1', '2', '3', '5', '6', '7', '8', '11', '12', '21', '22', '41', '47', '61', '82', '72', '73', '62', '63', '42', '33', '43', '53', '14', '24', '44', '54', '64', '74', '94', '31', '39'] 
 
 class PltFile:
   """represents a Plotnik file (header and vowel measurements)"""
@@ -50,6 +56,7 @@ class PltFile:
   S = ''                    ## group log mean for nomalization (ANAE p. 39) ??? - or individual log mean ???
   ## tokens
   measurements = []         ## list of measurements (all following lines in Plotnik file)
+
 
 class VowelMeasurement:
   """represents a single vowel token (one line in a Plotnik data file)"""
@@ -68,7 +75,8 @@ class VowelMeasurement:
   t = 0                     ## time of measurement
 
 
-def arpabet2plotnik(ac, trans, prec_p, foll_p, phoneset):
+
+def arpabet2plotnik(ac, trans, prec_p, foll_p, phoneset, fm, fp, fv, ps, fs):
   """translates Arpabet transcription of vowels into codes for Plotnik vowel classes"""
   ## ac = Arpabet coding
   ## trans = (orthographic) transcription of token
@@ -96,7 +104,11 @@ def arpabet2plotnik(ac, trans, prec_p, foll_p, phoneset):
   ## all other cases:
   else:
     pc = A2P[ac]
+
+  ## refine vowel class assignment
+    
   return pc
+
 
 def cmu2plotnik_code(i, phones, trans, phoneset):
   """converts Arpabet to Plotnik coding (for vowels) and adds Plotnik environmental codes (.xxxxx)"""
@@ -174,7 +186,8 @@ def cmu2plotnik_code(i, phones, trans, phoneset):
 
   ## convert CMU (Arpabet) transcription into Plotnik code
   ## ("label[:-1]":  without stress digit)
-  code = arpabet2plotnik(phones[i].label[:-1], trans, prec_p, foll_p, phoneset)
+  code = arpabet2plotnik(phones[i].label[:-1], trans, prec_p, foll_p, phoneset, fm, fp, fv, ps, fs)
+
   ## add Plotnik environmental coding
   code += '.'
   code += fm
@@ -184,16 +197,19 @@ def cmu2plotnik_code(i, phones, trans, phoneset):
   code += fs
   return code, prec_p
 
+
 def convertDur(dur):
   """converts durations into integer msec (as required by Plotnik)"""
   dur = int(round(dur * 1000))
   return dur
+
 
 def convertStress(stress):
   """converts labeling of unstressed vowels from '0' in the CMU Pronouncing Dictionary to '3' in Plotnik"""  
   if stress == '0':
     stress = '3'
   return stress
+
 
 def get_age(line):
   """returns age of speaker from header line of Plotnik file, if present"""
@@ -202,6 +218,7 @@ def get_age(line):
   except IndexError:
     age = ''
   return age
+
 
 def get_city(line):
   """returns city from header line of Plotnik file, if present"""
@@ -218,10 +235,12 @@ def get_city(line):
       city = ''
   return city
 
+
 def get_first_name(line):
   """returns first name of speaker from header line of Plotnik file"""
   first_name = line.split(',')[0].split()[0]  ## first part of first data field
   return first_name
+
 
 def get_last_name(line):
   """returns last name of speaker from header line of Plotnik file, if present"""
@@ -231,6 +250,7 @@ def get_last_name(line):
     last_name = ''
   return last_name
 
+
 def get_n(line):
   """returns number of tokens from second header line of Plotnik file, if present"""
   try:
@@ -238,6 +258,7 @@ def get_n(line):
   except IndexError:
     n = ''
   return n
+
 
 def get_n_foll_c(i, phones):
   """returns the number of consonants in the syllable coda"""
@@ -253,6 +274,7 @@ def get_n_foll_c(i, phones):
       n += 1
   return n
 
+
 def get_n_foll_syl(i, phones):
   """returns the number of following syllables"""
   ## number of syllables determined by number of following vowels
@@ -264,6 +286,7 @@ def get_n_foll_syl(i, phones):
       n += 1
   return n
 
+
 def get_s(line):
   """returns ??? from second header line of Plotnik file, if present"""
   try:
@@ -271,6 +294,7 @@ def get_s(line):
   except IndexError:
     s = ''
   return s
+
 
 def get_sex(line):
   """returns speaker sex from header line of Plotnik file, if included"""
@@ -282,6 +306,7 @@ def get_sex(line):
   if sex not in ['m', 'f']:                   ## if contents of third data field somthing other than sex (e.g. city)
     sex = ''
   return sex
+
 
 def get_state(line):
   """returns state from header line of Plotnik file, if present"""
@@ -298,6 +323,7 @@ def get_state(line):
       state = ''
   return state
 
+
 def get_stressed_v(phones):
   """returns the index of the stressed vowel, or '' if none or more than one exist"""
   primary_count = 0
@@ -312,6 +338,7 @@ def get_stressed_v(phones):
   else:
     return i
 
+
 def get_ts(line):
   """returns Telsur subject number from header line of Plotnik file, if present"""
   if ' TS ' in line:
@@ -321,6 +348,7 @@ def get_ts(line):
   else:
     ts = ''
   return ts
+
 
 # this is a hack based on the fact that we know that the CMU transcriptions for vowels
 # all indicate the level of stress in their final character (0, 1, or 2);
@@ -333,27 +361,35 @@ def is_v(p):
   else:
     return False
 
+
 def outputPlotnikFile(Plt, f):
   """writes the contents of a PltFile object to file (in Plotnik format)"""
   ## pltFields = {'f1':0, 'f2':1, 'f3':2, 'code':3, 'stress':4, 'word':5}
   fw = open(f, 'w')
+  ## header
   fw.write(" ".join([Plt.first_name, Plt.last_name]) + ',' + ','.join([Plt.age, Plt.sex, Plt.city, Plt.state, Plt.ts]))
   fw.write('\n')
   fw.write(str(Plt.N) + ',' + str(Plt.S))   ## no spaces around comma here!
   fw.write('\n')
+  ## end of header
   for vm in Plt.measurements:
-    stress = convertStress(vm.stress)
+    stress = convertStress(vm.stress)                 
     dur = convertDur(vm.dur)
     if not vm.f3:
-      vm.f3 = ''
+      vm.f3 = ''                                                       ## F1, F2, F3, vowel and environmental coding, stress and duration, token
     fw.write(','.join([str(round(vm.f1, 1)), str(round(vm.f2, 1)), str(vm.f3), vm.code, stress + '.' + str(dur), vm.word]))
+    if vm.glide:
+      fw.write(' {' + vm.glide + '}')                                  ## glide annotation, if applicable
     if vm.style:  
-      fw.write(' -' + vm.style+ '-')                                  ## style coding, if applicable
-    fw.write(' ' + str(vm.t) + ' ')                                   ## measurement point
-#    fw.write('+' + ','.join([str(p) for p in vm.poles]) + '+')        ## list of original poles as returned from LPC analysis
-#    fw.write('+' + ','.join([str(b) for b in vm.bandwidths]) + '+')   ## list of original bandwidths as returned from LPC analysis
+      fw.write(' -' + style2plotnik(vm.style, vm.word) + '-')          ## style coding, if applicable
+    if vm.nFormants:
+      fw.write(' /' + str(vm.nFormants) + '/')                         ## nFormants (if Mahalanobis method)
+    fw.write(' ' + str(vm.t) + ' ')                                    ## measurement point
+#    fw.write('+' + ','.join([str(p) for p in vm.poles]) + '+')        ## list of original poles as returned from LPC analysis (at point of measurement)
+#    fw.write('+' + ','.join([str(b) for b in vm.bandwidths]) + '+')   ## list of original bandwidths as returned from LPC analysis (at point of measurement)
     fw.write('\n')
   fw.close()
+
 
 def process_measurement_line(line):
   """splits Plotnik measurement line into values for formants, vowel class, stress, token, glide, style, and comment"""
@@ -398,6 +434,7 @@ def process_measurement_line(line):
       vm.comment = res[1].strip()           ## anything that comes after the style coding
 
   return vm
+
 
 def process_plt_file(filename):
   """reads a Plotnik data file into a PltFile object"""
@@ -466,6 +503,14 @@ def process_plt_file(filename):
   else:
     return Plt
 
+def style2plotnik(stylecode, word):
+  """converts single- or double-letter style codes to the corresponding Plotnik digits"""
+  if stylecode not in STYLES:
+    print "ERROR!  Style code %s of word % s is not an allowed option." % (stylecode, word)
+    sys.exit()
+  else:
+    return STYLES[stylecode]
+
 def word2fname(word):
   """makes a unique filename out of token name???  (limited to 8 characters, count included as final) ???"""
   fname = word.replace('(', '')           ## delete initial parenthesis
@@ -480,6 +525,7 @@ def word2fname(word):
     else:
       fname = fname[0:8]
   return fname
+
 
 def word2trans(word):
   """converts Plotnik word as originally entered (with parentheses and token number) into normal transcription (upper case)"""

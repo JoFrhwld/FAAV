@@ -1,2 +1,6 @@
-outputFormat=text
+outputFormat=plotnik
 formantPredictionMethod=mahalanobis
+measurementPointMethod=faav
+nSmoothing=12
+remeasurement=T
+candidates=T

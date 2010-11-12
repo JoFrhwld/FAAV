@@ -3,7 +3,7 @@
 #################################################################################
 ##       !!! This is NOT the original extractFormants.py file !!!              ##
 ##                                                                             ##
-## Last modified by Ingrid Rosenfelder:  September 9, 2010                     ##
+## Last modified by Ingrid Rosenfelder:  November 3, 2010                      ##
 ## - all comments beginning with a double pound sign ("##")                    ##
 ## - docstrings for all classes and functions                                  ##
 ## - alphabetic ordering outside of main program:                              ##
@@ -23,7 +23,7 @@
 ## - fixed rounding problem with phone duration (< 50 ms)                      ##
 ## - changed Praat Formant method to Burg for Mahalanobis measurement method   ##
 ## - adapted Mahalanobis method to vary number of formants from 3 to 6 (Burg), ##
-##   then choose pair of winning poles from all F1/F2 combinations of these    ##
+##   then choose winning pair from all F1/F2 combinations of these             ##
 ## - changed Praat object from LPC to Formant                                  ##
 ## - no restriction on # of formants per frame for Formant objects             ##
 ## - smoothing of formant tracks ( -> parameter nSmoothing in options)         ##
@@ -33,6 +33,10 @@
 ##      - OW, AW measured halfway between beginning of segment and F1 maximum  ##
 ##      - EY is measured at maximum F1, but without extra padding              ##
 ## - returns F3 and corresponding bandwidth, if possible                       ##
+## - outputs and summarizes chosen nFormants (in separate file)                ##
+## - integrated remeasurement.py                                               ##
+## - new options:  remeasurement and candidates                                ##
+## - fixed checkTextGrid so that compatible with FA online interface output    ##
 #################################################################################
 
 
@@ -52,6 +56,7 @@ import praat, esps, plotnik, cmu, vowel
 import rpy2.robjects as robjects
 import re
 import time
+import remeasure
 
 uncertain = re.compile(r"\(\(([\*\+]?['\w]+\-?)\)\)")
 
@@ -128,7 +133,7 @@ class Word:
 
 def addOverlaps(words, tg, speaker):
     """for a given speaker, checks each phone interval against overlaps on other tiers"""
-    ## NOTE:  this thing can really slow the program down if you're checking some 20,000 phone intervals...
+    ## NOTE:  this thing can really slow down the program if you're checking some 20,000 phone intervals...
     ## -> use of pointers speeds up this part of the program by a factor of 18 or so :-)
     ## initialize pointers
     pointer = []
@@ -240,7 +245,7 @@ def checkConfigLine(f, line):
 
 def checkConfigOption(f, option):
     """checks that the option specified in the config file is among the allowed options"""
-    allowedOptions = ['case', 'outputFormat', 'outputHeader', 'formantPredictionMethod', 'measurementPointMethod', 'speechSoftware', 'nFormants', 'maxFormant', 'removeStopWords', 'measureUnstressed', 'minVowelDuration', 'windowSize', 'preEmphasis', 'multipleFiles', 'nSmoothing']
+    allowedOptions = ['case', 'outputFormat', 'outputHeader', 'formantPredictionMethod', 'measurementPointMethod', 'speechSoftware', 'nFormants', 'maxFormant', 'removeStopWords', 'measureUnstressed', 'minVowelDuration', 'windowSize', 'preEmphasis', 'multipleFiles', 'nSmoothing', 'remeasurement', 'candidates']
     if option not in allowedOptions:
         print "ERROR:  unrecognized option '%s' in config file %s" % (option, f)
         print "The following options are recognized:  ", ", ".join(allowedOptions)
@@ -266,7 +271,7 @@ def checkConfigValue(f, option, value):
     if option == 'speechSoftware':
         allowedValues = ['praat', 'Praat', 'esps', 'ESPS']
         checkAllowedValues(f, option, value, allowedValues)
-    if option in ['removeStopWords', 'measureUnstressed', 'outputHeader', 'multipleFiles']:
+    if option in ['removeStopWords', 'measureUnstressed', 'outputHeader', 'multipleFiles', 'remeasurement', 'candidates']:
         allowedValues = ['T', 'F']
         checkAllowedValues(f, option, value, allowedValues)
 
@@ -315,6 +320,9 @@ def checkTiers(tg):
     if style and tg[-1].name().strip().upper() != "STYLE" :
         sys.exit("ERROR!  Odd number of tiers in TextGrid, but last tier is not style tier.")
     else:
+        ## to make this compatible with output from the FA online interface (where there are just two tiers)
+        if len(tg) == 2:
+            return speakers
         for i in range(ns):
             ## even (in terms of indices) tiers must be phone tiers
             if tg[2*i].name().split(' - ')[1].strip().upper() != "PHONE":
@@ -520,18 +528,27 @@ def getSpeakerBackground(speakername, speakernum):
     speaker.name = raw_input("Name:\t\t%s" % speakername.strip())
     if not speaker.name:
         speaker.name = speakername.strip()
-    speaker.first_name = raw_input("First name:\t%s" % speakername.strip().split()[0])
-    if not speaker.first_name:
-        speaker.first_name = speakername.strip().split()[0]
-    ## some speakers' last names are not known!
     try:
-        speaker.last_name = raw_input("Last name:\t%s" % speakername.strip().split()[1])
-        if not speaker.last_name:
-            speaker.last_name = speakername.strip().split()[1]
-    except IndexError:
-        speaker.last_name = raw_input("Last name:\t")
+        speaker.first_name = raw_input("First name:\t%s" % speaker.name.strip().split()[0])
+        if not speaker.first_name:
+            speaker.first_name = speaker.name.strip().split()[0]
+        ## some speakers' last names are not known!
+        try:
+            speaker.last_name = raw_input("Last name:\t%s" % speaker.name.strip().split()[1])
+            if not speaker.last_name:
+                speaker.last_name = speaker.name.strip().split()[1]
+        except IndexError:
+            speaker.last_name = raw_input("Last name:\t")
+    except:
+        speaker.first_name = ''
+        speaker.last_name = ''
     speaker.age = raw_input("Age:\t\t")
     speaker.sex = raw_input("Sex:\t\t")
+    ## check that speaker sex is defined - this is required for the Mahalanobis method!
+    if formantPredictionMethod == "mahalanobis":
+        if not speaker.sex:
+            print "ERROR!  Speaker sex must be defined for the 'mahalanobis' formantPredictionMethod!"
+            sys.exit()
     speaker.city = raw_input("City:\t\tPhiladelphia")
     if not speaker.city:
         speaker.city = "Philadelphia"
@@ -628,16 +645,17 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
                 lpc.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
                 LPCs.append(lpc)
                 nFormants +=1
-            ## get Intensity object for intensity cutoff
-            os.system('praat ' + os.path.join(SCRIPTS_HOME, 'getIntensity.praat') + ' ' + vowelWavFile)
-            intensity = praat.Intensity()
-            intensity.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Intensity'))
-            os.remove(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Intensity'))        
         else:
             os.system('praat ' + os.path.join(SCRIPTS_HOME, 'extractFormants.praat') + ' ' + vowelWavFile + ' ' + str(nFormants) + ' ' + str(maxFormant) + ' ' + str(windowSize) + ' ' + str(preEmphasis) + ' burg')
             fmt = praat.Formant()
             fmt.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
         os.remove(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
+        ## get Intensity object for intensity cutoff
+        os.system('praat ' + os.path.join(SCRIPTS_HOME, 'getIntensity.praat') + ' ' + vowelWavFile)
+        intensity = praat.Intensity()
+        intensity.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Intensity'))
+        os.remove(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Intensity'))
+        intensity.change_offset(p.xmin - padBeg)
     ## get measurement according to formant prediction method
     ## Mahalanobis:
     if formantPredictionMethod == 'mahalanobis':
@@ -648,14 +666,13 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
             convertedTimes.append(convertTimes(lpc.times(), p.xmin - padBeg))  ## add offset to all time stamps from Formant file
             poles.append(lpc.formants())
             bandwidths.append(lpc.bandwidths())
-        intensity.change_offset(p.xmin - padBeg)
         vm = measureVowel(p, w, poles, bandwidths, convertedTimes, intensity, measurementPointMethod, formantPredictionMethod, padBeg, padEnd, means, covs)
     ## default:
     else:   # assume 'default' here
-        convertedTimes = convertTimes(fmt.times(), p.xmin - padBeg)
-        formants = fmt.formants()
-        bandwidths = fmt.bandwidths()
-        vm = measureVowel(p, w, formants, bandwidths, convertedTimes, measurementPointMethod, formantPredictionMethod, padBeg, padEnd, '', '')
+        convertedTimes = [convertTimes(fmt.times(), p.xmin - padBeg)]
+        formants = [fmt.formants()]
+        bandwidths = [fmt.bandwidths()]
+        vm = measureVowel(p, w, formants, bandwidths, convertedTimes, intensity, measurementPointMethod, formantPredictionMethod, padBeg, padEnd, '', '')
   
     os.remove(os.path.join(SCRIPTS_HOME, vowelWavFile))
     return vm
@@ -767,10 +784,11 @@ def maximumIntensity(intensities, times):
 def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPointMethod, formantPredictionMethod, padBeg, padEnd, means, covs):
     """returns vowel measurement (formants, bandwidths, labels, Plotnik codes)"""
 
-    ## smooth formant tracks and bandwidths
-    poles = [smoothTracks(p, nSmoothing) for p in poles]
-    bandwidths = [smoothTracks(b, nSmoothing) for b in bandwidths]
-    times = [t[nSmoothing:-nSmoothing] for t in times]
+    ## smooth formant tracks and bandwidths, if desired
+    if nSmoothing:
+        poles = [smoothTracks(p, nSmoothing) for p in poles]
+        bandwidths = [smoothTracks(b, nSmoothing) for b in bandwidths]
+        times = [t[nSmoothing:-nSmoothing] for t in times]
 
     if formantPredictionMethod == 'mahalanobis':
         selectedpoles = []
@@ -788,19 +806,20 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
             selectedbandwidths.append(bandwidths[j][i])
         f1, f2, f3, b1, b2, b3, winnerIndex = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
         measurementPoint = measurementPoints[winnerIndex][0]
-    else:
-        measurementPoint = getMeasurementPoint(phone, poles, times, intensity, measurementPointMethod)
-        i = getTimeIndex(measurementPoint, times[j])
+        
+    else:  ## formantPredictionMethod == 'default'
+        measurementPoint = getMeasurementPoint(phone, poles[0], times[0], intensity, measurementPointMethod)
+        i = getTimeIndex(measurementPoint, times[0])
         ## (changed this so that "poles"/"bandwidths" only reflects measurements made at measurement point -
         ## same as for Mahalanobis distance method)
-        selectedpoles = [poles[i]]
-        selectedbandwidths = [bandwidths[i]]
-        f1 = poles[0]
-        f2 = poles[1]
-        f3 = poles[2]
-        b1 = bandwidths[0]
-        b2 = bandwidths[1]
-        b3 = bandwidths[2]
+        selectedpoles = poles[0][i]
+        selectedbandwidths = bandwidths[0][i]
+        f1 = selectedpoles[0]
+        f2 = selectedpoles[1]
+        f3 = selectedpoles[2]
+        b1 = selectedbandwidths[0]
+        b2 = selectedbandwidths[1]
+        b3 = selectedbandwidths[2]
 
     ## put everything together into VowelMeasurement object
     vm = VowelMeasurement()
@@ -853,6 +872,33 @@ def modifyIntensityCutoff(beg_cutoff, end_cutoff, phone, intensities, times):
     return beg_cutoff, end_cutoff
 
 
+def outputFormantSettings(measurements, speaker, outputFile):
+    """summarizes the formant settings used for each vowel class in a separate file"""
+    ## initialize counting dictionary; use tuples (Plotnik code, nFormants) as indices
+    count = {}
+    for code in plotnik.PLOTNIKCODES:
+        for nf in range(3, 7):
+            count[(int(code), nf)] = 0
+    for vm in measurements:
+        count[(int(vm.cd), int(vm.nFormants))] += 1
+
+    ## filename = name of the output file, but with extension "nFormants"
+    outfilename = os.path.splitext(outputFile)[0] + ".nFormants"
+    f = open(outfilename, 'w')
+    f.write("Formant settings for %s:\n\n" % outputFile)
+    f.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.city, speaker.state, speaker.year]))
+    f.write('\n\n')
+    f.write('\t'.join(['vowel', '3', '4', '5', '6']))
+    f.write('\n')
+    f.write('----------------------------------------\n')
+    for code in plotnik.PLOTNIKCODES:
+        f.write(code)
+        for nf in range(3, 7):
+            f.write('\t' + str(count[(int(code), nf)]))
+        f.write('\n')
+    f.close()
+    
+
 def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHeader):
     """writes measurements to file according to selected output format"""
     ## outputFormat = "text"
@@ -861,27 +907,35 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
         ## print header, if applicable
         if outputHeader:
             ## speaker information
-            fw.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.city, speaker.state]))
+            fw.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.city, speaker.state, speaker.year]))
             fw.write('\n\n')            
             # header
-            fw.write('\t'.join(['vowel', 'stress', 'word', 'F1', 'F2', 'F3', 'B1', 'B2', 'B3', 't', 'beg', 'end', 'dur', 'cd', 'fm', 'fp', 'fv', 'ps', 'fs', 'style', 'glide', 'nFormants', 'poles', 'bandwidths']))
+            fw.write('\t'.join(['vowel', 'stress', 'word', 'F1', 'F2', 'F3', 'B1', 'B2', 'B3', 't', 'beg', 'end', 'dur', 'cd', 'fm', 'fp', 'fv', 'ps', 'fs', 'style', 'glide']))
+            if formantPredictionMethod == 'mahalanobis':
+                fw.write('\t')
+                fw.write('nFormants')
+            if candidates:
+                fw.write('\t')
+                fw.write('\t'.join(['poles', 'bandwidths']))
             fw.write('\n')
         for vm in measurements:
-            fw.write('\t'.join([vm.phone, str(vm.stress), vm.word, str(vm.f1), str(vm.f2)]))
+            fw.write('\t'.join([vm.phone, str(vm.stress), vm.word, str(vm.f1), str(vm.f2)]))    ## vowel (ARPABET coding), stress, word, F1, F2
             fw.write('\t')
             if vm.f3:
-                fw.write(str(vm.f3))
+                fw.write(str(vm.f3))                                                            ## F3 (if present)
             fw.write('\t')
-            fw.write('\t'.join([str(vm.b1), str(vm.b2)]))
+            fw.write('\t'.join([str(vm.b1), str(vm.b2)]))                                       ## B1, B2
             fw.write('\t')
             if vm.b3:            
-                fw.write(str(vm.b3))
+                fw.write(str(vm.b3))                                                            ## B3 (if present)
             fw.write('\t')
             fw.write('\t'.join([str(vm.t), str(vm.beg), str(vm.end), str(vm.dur), vm.cd, vm.fm, vm.fp, vm.fv, vm.ps, vm.fs, vm.style, vm.glide]))
+            fw.write('\t')      ## time of measurement, beginning and end of phone, duration, Plotnik environment codes, style coding, glide coding
             if vm.nFormants:
-                fw.write(str(vm.nFormants))
-            fw.write('\t')
-            fw.write('\t'.join([','.join([str(p) for p in vm.poles]), ','.join([str(b) for b in vm.bandwidths])]))
+                fw.write(str(vm.nFormants))                                                     ## nFormants selected (if Mahalanobis method)
+                fw.write('\t')
+            if candidates:
+                fw.write('\t'.join([','.join([str(p) for p in vm.poles]), ','.join([str(b) for b in vm.bandwidths])]))  ## candidate poles and bandwidths (at point of measurement)
             fw.write('\n')
         fw.close()
     ## outputFormat = "plotnik"
@@ -903,6 +957,10 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
         print "ERROR: Unsupported output format %s" % outputFormat
         print __doc__ 
         sys.exit(0)
+
+    ## write summary of formant settings to file
+    if formantPredictionMethod == 'mahalanobis':
+        outputFormantSettings(measurements, speaker, outputFile)
 
 
 def parseConfig(options, f):
@@ -1012,12 +1070,12 @@ def setDefaultOptions():
     options['case'] = 'upper'
     options['outputFormat'] = 'text'
     options['outputHeader'] = True
-    options['formantPredictionMethod'] = 'default'
-    options['measurementPointMethod'] = 'third'
+    options['formantPredictionMethod'] = 'mahalanobis'
+    options['measurementPointMethod'] = 'faav'
     options['speechSoftware'] = 'praat'
     options['nFormants'] = 5
     options['maxFormant'] = 5000
-    options['nSmoothing'] = 7
+    options['nSmoothing'] = 12
     options['removeStopWords'] = False
     options['measureUnstressed'] = True
     options['minVowelDuration'] = 0.05
@@ -1025,6 +1083,8 @@ def setDefaultOptions():
     options['preEmphasis'] = 50
     options['multipleFiles'] = False
     options['stopWords'] = ["AND", "BUT", "FOR", "HE", "HE'S", "HUH", "I", "I'LL", "I'M", "IS", "IT", "IT'S", "ITS", "MY", "OF", "OH", "SHE", "SHE'S", "THAT", "THE", "THEM", "THEN", "THERE", "THEY", "THIS", "UH", "UM", "UP", "WAS", "WE", "WERE", "WHAT", "YOU"]
+    options['remeasurement'] = False
+    options['candidates'] = False
     return options
 
 
@@ -1077,6 +1137,10 @@ def trimFormants(formants, times, minimum, maximum):
 
 def whichSpeaker(speakers):
     """prompts the user for input on the speaker to be analyzed"""
+    ## if there are just two tiers in the input TextGrid, speakers will be an empty list
+    if not speakers:
+        speaker = getSpeakerBackground("", 0)
+        return speaker
     ## get speaker from list of tiers
     print "Speakers in TextGrid:"
     for i, s in enumerate(speakers):
@@ -1136,6 +1200,7 @@ def writeLog(filename):
     f.write("- multipleFiles:\t\t%s\n" % multipleFiles)
     f.write("- meansFile:\t\t\t%s\n" % meansFile)
     f.write("- covsFile:\t\t\t%s\n" % covsFile)
+    f.write("- remeasurement:\t\t%s\n" % remeasurement)
     if removeStopWords:
         f.write("- stopWords:\t\t\t%s\n" % stopWords)
     f.write("\n\n")
@@ -1236,6 +1301,8 @@ if __name__ == '__main__':
     windowSize = float(options['windowSize'])
     preEmphasis = float(options['preEmphasis'])
     multipleFiles = options['multipleFiles']
+    remeasurement = options['remeasurement']
+    candidates = options['candidates']
 
     ## read CMU phoneset ("cmu_phoneset.txt")
     phoneset = cmu.read_phoneset(phonesetFile)
@@ -1358,6 +1425,9 @@ if __name__ == '__main__':
                 vm = getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMethod, measurementPointMethod, nFormants, maxFormant, windowSize, preEmphasis, padBeg, padEnd, speaker)
                 measurements.append(vm)
                 count_analyzed += 1
+
+        if remeasurement and formantPredictionMethod == 'mahalanobis':
+            measurements = remeasure.remeasure(measurements)
 
         # don't output anything if we didn't take any measurements
         # (this prevents the creation of empty output files)
