@@ -263,7 +263,7 @@ def checkConfigValue(f, option, value):
         allowedValues = ['txt', 'text', 'plotnik', 'Plotnik']
         checkAllowedValues(f, option, value, allowedValues)
     if option == 'formantPredictionMethod':
-        allowedValues = ['default', 'mahalanobis']
+        allowedValues = ['default', 'mahalanobis','reremeasurement']
         checkAllowedValues(f, option, value, allowedValues)
     if option == 'measurementPointMethod':
         allowedValues = ['fourth', 'third', 'mid', 'lennig', 'anae', 'faav', 'maxint']
@@ -628,7 +628,7 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
         esps.rmFormantFiles(vowelFileStem)
     ## via Praat:  ## NOTE:  all temp files are in the "/bin" directory!
     else:   # assume praat here
-        if formantPredictionMethod == 'mahalanobis':
+        if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == 'reremeasurement':
             ## adjust maximum formant frequency to speaker sex
             if speaker.sex in ["m", "M", "male", "MALE"]:
                 maxFormant = 5000
@@ -645,6 +645,7 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
                 lpc.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
                 LPCs.append(lpc)
                 nFormants +=1
+            
         else:
             os.system('praat ' + os.path.join(SCRIPTS_HOME, 'extractFormants.praat') + ' ' + vowelWavFile + ' ' + str(nFormants) + ' ' + str(maxFormant) + ' ' + str(windowSize) + ' ' + str(preEmphasis) + ' burg')
             fmt = praat.Formant()
@@ -658,7 +659,7 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
         intensity.change_offset(p.xmin - padBeg)
     ## get measurement according to formant prediction method
     ## Mahalanobis:
-    if formantPredictionMethod == 'mahalanobis':
+    if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == 'reremeasurement':
         convertedTimes = []
         poles = []
         bandwidths = []
@@ -806,6 +807,23 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
             selectedbandwidths.append(bandwidths[j][i])
         f1, f2, f3, b1, b2, b3, winnerIndex = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
         measurementPoint = measurementPoints[winnerIndex][0]
+    elif formantPredictionMethod == "reremeasurement":
+        selectedpoles = []
+        selectedbandwidths = []
+        measurementPoints = []
+
+        for j in range(4):
+            ## get point of measurement and corresponding index (closest to point of measurement) according to method specified in config file
+            ## NOTE:  Point of measurement and time index will be the same for "third", "mid", "fourth" methods for all values of nFormants
+            ##        For "lennig", "anae" and "faav", which depend on the curvature of the formant tracks, different results will be obtained for different nFormants settings.
+            measurementPoint = getMeasurementPoint(phone, poles[j], times[j], intensity, measurementPointMethod)
+            i = getTimeIndex(measurementPoint, times[j])
+            measurementPoints.append((measurementPoint, i))
+            selectedpoles.append(poles[j][i])
+            selectedbandwidths.append(bandwidths[j][i])
+        f1, f2, f3, b1, b2, b3, winnerIndex = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
+        measurementPoint = measurementPoints[winnerIndex][0]
+        
         
     else:  ## formantPredictionMethod == 'default'
         measurementPoint = getMeasurementPoint(phone, poles[0], times[0], intensity, measurementPointMethod)
@@ -848,7 +866,7 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
     vm.dur = round(phone.xmax - phone.xmin, 3)  ## duration of vowel (rounded to msec)
     vm.poles = selectedpoles                    ## original poles returned by LPC analysis
     vm.bandwidths = selectedbandwidths          ## original bandwidths returned by LPC analysis
-    if formantPredictionMethod == 'mahalanobis':
+    if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == "reremeasurement":
         vm.nFormants = winnerIndex + 3          ## actual formant settings used in the analysis
         if phone.label[:-1] == "AY":
             vm.glide = detectMonophthong(poles[winnerIndex], measurementPoints[winnerIndex][0], measurementPoints[winnerIndex][1])
@@ -1006,42 +1024,73 @@ def predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs):
     values = []             ## this list keeps track of all pairs of poles/bandwidths "tested"
     distances = []          ## this list keeps track of the corresponding value of the Mahalanobis distance
     ## for all values of nFormants:
-    for poles, bandwidths in zip(selectedpoles, selectedbandwidths):
-        ## check that there are at least two formants in the selected frame
-        if len(poles) >= 2:
-            #nPoles = len(poles)     ## number of poles
-            ## check all possible combinations of F1, F2, F3: 
-            #for i in range(min([nPoles - 1, 2])):
-            #    for j in range(i+1, min([nPoles, 3])):
-                    i = 0
-                    j = 1
-                    ## vector with current pole combination and associated bandwidths
-                    x = robjects.FloatVector([poles[i], poles[j], math.log(bandwidths[i]), math.log(bandwidths[j])])
-                    ## calculate Mahalanobis distance between x and ANAE mean
-                    dist = robjects.r['mahalanobis'](x, means[vowel], covs[vowel])[0]
-                    ## append poles and bandwidths to list of values
-                    ## (if F3 and bandwidth measurements exist, add to list of appended values)
-                    if len(poles) > 2:
-                        values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
-                    else:
-                        values.append([x[0], x[1], x[2], x[3], '', ''])
-                    ## append corresponding Mahalanobis distance to list of distances
-                    distances.append(dist)
-        ## we need to append something to the distances and values lists so that the winnerIndex still corresponds with nFormants!
-        ## (this is for the case that the selected formant frame only contains F1 - empty string will not be selected as minimum distance)
-        else:   
-            values.append([poles[0], '', bandwidths[0], '', '', ''])
-            distances.append('')
-    ## get index for minimum Mahalanobis distance
-    winnerIndex = distances.index(min(distances))
-    ## get corresponding F1, F2 and bandwidths values
-    f1 = values[winnerIndex][0]
-    f2 = values[winnerIndex][1]
-    f3 = values[winnerIndex][4]
-    b1 = math.exp(values[winnerIndex][2])
-    b2 = math.exp(values[winnerIndex][3])
-    b3 = values[winnerIndex][5]
-    ## return tuple of measurements
+    if formantPredictionMethod == "reremeasurement":
+        for poles, bandwidths in zip(selectedpoles, selectedbandwidths):
+            ## check that there are at least two formants in the selected frame
+            if len(poles) >= 2:
+                #nPoles = len(poles)     ## number of poles
+                ## check all possible combinations of F1, F2, F3: 
+                #for i in range(min([nPoles - 1, 2])):
+                #    for j in range(i+1, min([nPoles, 3])):
+                        i = 0
+                        j = 1
+                        x = robjects.FloatVector([poles[i], poles[j], math.log(bandwidths[i]), math.log(bandwidths[j])])
+                        
+                        if len(poles) > 2:
+                            values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
+                        else:
+                            values.append([x[0], x[1], x[2], x[3], '', ''])
+
+            else:   
+                values.append([poles[0], '', bandwidths[0], '', '', ''])
+
+        winnerIndex = 2
+        f1 = values[winnerIndex][0]
+        f2 = values[winnerIndex][1]
+        f3 = values[winnerIndex][4]
+        b1 = math.exp(values[winnerIndex][2])
+        b2 = math.exp(values[winnerIndex][3])
+        b3 = values[winnerIndex][5]
+        ## return tuple of measurements
+        
+    else:
+    
+        for poles, bandwidths in zip(selectedpoles, selectedbandwidths):
+            ## check that there are at least two formants in the selected frame
+            if len(poles) >= 2:
+                #nPoles = len(poles)     ## number of poles
+                ## check all possible combinations of F1, F2, F3: 
+                #for i in range(min([nPoles - 1, 2])):
+                #    for j in range(i+1, min([nPoles, 3])):
+                        i = 0
+                        j = 1
+                        ## vector with current pole combination and associated bandwidths
+                        x = robjects.FloatVector([poles[i], poles[j], math.log(bandwidths[i]), math.log(bandwidths[j])])
+                        ## calculate Mahalanobis distance between x and ANAE mean
+                        dist = robjects.r['mahalanobis'](x, means[vowel], covs[vowel])[0]
+                        ## append poles and bandwidths to list of values
+                        ## (if F3 and bandwidth measurements exist, add to list of appended values)
+                        if len(poles) > 2:
+                            values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
+                        else:
+                            values.append([x[0], x[1], x[2], x[3], '', ''])
+                        ## append corresponding Mahalanobis distance to list of distances
+                        distances.append(dist)
+            ## we need to append something to the distances and values lists so that the winnerIndex still corresponds with nFormants!
+            ## (this is for the case that the selected formant frame only contains F1 - empty string will not be selected as minimum distance)
+            else:   
+                values.append([poles[0], '', bandwidths[0], '', '', ''])
+                distances.append('')
+        ## get index for minimum Mahalanobis distance
+        winnerIndex = distances.index(min(distances))
+        ## get corresponding F1, F2 and bandwidths values
+        f1 = values[winnerIndex][0]
+        f2 = values[winnerIndex][1]
+        f3 = values[winnerIndex][4]
+        b1 = math.exp(values[winnerIndex][2])
+        b2 = math.exp(values[winnerIndex][3])
+        b3 = values[winnerIndex][5]
+        ## return tuple of measurements
     return (f1, f2, f3, b1, b2, b3, winnerIndex)
 
 
@@ -1315,7 +1364,7 @@ if __name__ == '__main__':
 
     # if we're using the Mahalanobis distance metric for vowel formant prediction,
     # we need to load files with the mean and covariance values
-    if formantPredictionMethod == 'mahalanobis':
+    if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == 'reremeasurement':
         means = loadMeans(meansFile)    ## "means.txt"
         covs = loadCovs(covsFile)       ## "covs.txt"
 
@@ -1428,6 +1477,11 @@ if __name__ == '__main__':
 
         if remeasurement and formantPredictionMethod == 'mahalanobis':
             measurements = remeasure.remeasure(measurements)
+
+        if remeasurement and formantPredictionMethod == 'reremeasurement':
+            for i in range(6):
+                measurements = remeasure.remeasure(measurements)
+                outputMeasurements(outputFormat, measurements, speaker, outputFile+repr(i), outputHeader)
 
         # don't output anything if we didn't take any measurements
         # (this prevents the creation of empty output files)

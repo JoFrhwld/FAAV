@@ -1,5 +1,4 @@
-outputFormat=plotnik
-formantPredictionMethod=mahalanobis
+formantPredictionMethod=reremeasurement
 measurementPointMethod=faav
 nSmoothing=12
 remeasurement=T
