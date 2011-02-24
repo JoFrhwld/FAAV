@@ -3,12 +3,12 @@ read.FAAV <- function(file){
 	
 	fileName <- tail(unlist(strsplit(file,.Platform$file.sep)),1)
 	data <- read.delim(file, skip = 2)[,1:22]
-	data$Name <- header[1]
-	data$Age <- header[2]
-	data$Sex <- header[3]
-	data$City <- header[4]
-	data$State <- header[5]
-	data$Date <- header[6]
-	data$File <- fileName
+	data$Name <- factor(header[1])
+	data$Age <- factor(header[2])
+	data$Sex <- factor(header[3])
+	data$City <- factor(header[4])
+	data$State <- factor(header[5])
+	data$Date <- factor(header[6])
+	data$File <- factor(fileName)
 	return(data)
 }
