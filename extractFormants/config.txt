@@ -1,4 +1,4 @@
-formantPredictionMethod=reremeasurement
+formantPredictionMethod=mahalanobis
 measurementPointMethod=faav
 nSmoothing=12
 remeasurement=T
