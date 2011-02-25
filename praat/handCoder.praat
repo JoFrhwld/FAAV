@@ -63,7 +63,7 @@ form jawn
 	sentence Search_Pre_Context consonant
 	sentence Search_Post_Context
 	sentence Stop_Pre_Context R
-	sentence Stop_Post_Context T D DH TH JH SH
+	sentence Stop_Post_Context T D DH TH JH CH
 	sentence Stop_Words AND
 	positive Window_Size 3
 	sentence Default_Code  
