@@ -15,6 +15,42 @@
 ##    Copyright 2011, Josef Fruehwald
 ###########################################################
 
+######################################################################################################	
+##	Usage:
+##		Setup
+##			-- Load a long sound file and a P2FA text grid.
+##			     These should be called the same thing in the objects list.
+##			-- Open this script and select Run > Run
+##			-- Define the segments and contexts you want to search for.
+##			     Enter lists of segments separated by spaces in the context fields, or alternatively,
+##			     enter "consonant" or "vowel"
+##		Coding
+##			-- An x-word window (default 3, defined buy Window_Size) on each side of the word of interest will play twice. 
+##			     You can adjust the window context and replay it within the editor, but this will require juggling
+##			     between the coding window and the editor window, and will slow down your workflow.
+##			-- You can enter any text into the coding field. If you are going to code multiple things, I suggest
+##			     using some kind of character delimiter between codes. Use the comment field for comments to yourself.
+##		Output
+##			-- The output will be a tab delimited file including the following pieces of data:
+##				* Object name
+##				* Segment of focus
+##				* Word position of the segment
+##				* Code from the coding field
+##				* Time of segment start
+##				* Time of segment end
+##				* Time of segment end
+##				* Word of focus
+##				* Word start
+##				* Word end
+##				* Preceding segment
+##				* Preceding segment start
+##				* Preceding segment end
+##				* Window duration
+##				* Vowels per second in the window
+##				* Comments
+######################################################################################################		
+
+
 
 form jawn
 	word file PH06-2-3-Amanda
@@ -80,7 +116,7 @@ endeditor
 select TextGrid 'file$'
 
 
-fileappend 'outfile$'	File	Segment	Position	Code		Seg_Start_ms	Seg_End_ms	Word	Word_Start_ms	Word_End_ms	Pre_Seg	Pre_Seg_Start_ms	Pre_Seg_End_ms	Post_Seg	Post_Seg_Start_ms	Post_Seg_End_ms	Window_ms	Vowels_per_Second	Comments'newline$'
+fileappend 'outfile$'	File	Segment	Position	Code		Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
 
 
 if word_Internal == 1
@@ -298,7 +334,7 @@ endif
 								comment("'word$' Start")
 								comment("Code")
 								text ("code", default_Code$)
-								text("Comments")
+								comment("Comments")
 								text ("comment", "")
 								Play window
 							endPause ("Continue", 1)
