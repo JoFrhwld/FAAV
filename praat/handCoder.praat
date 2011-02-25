@@ -221,7 +221,7 @@ if word_Internal == 1
 				Zoom... window_Start window_End
 				Play window
 				
-				beginPause ("Is it accurate")
+				beginPause ("Code it")
 					comment("'word$' Internal")
 					comment("Code")
 					text ("code", default_Code$)
@@ -330,7 +330,7 @@ endif
 							Zoom... window_Start window_End
 							Play window
 			
-							beginPause ("Is it accurate")
+							beginPause ("Code it")
 								comment("'word$' Start")
 								comment("Code")
 								text ("code", default_Code$)
@@ -427,7 +427,7 @@ endif
 							Zoom... window_Start window_End
 							Play window
 		
-							beginPause ("Is it accurate")
+							beginPause ("Code it")
 								comment("'word$' End")
 								comment("Code")
 								text ("code", default_Code$)
