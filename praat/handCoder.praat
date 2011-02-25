@@ -52,7 +52,7 @@
 
 
 
-form jawn
+form Search Settings
 	word file PH06-2-3-Amanda
 	word outfile outfile.txt
 	sentence Search_Segments T D
