@@ -194,8 +194,8 @@ fileappend 'outfile$'	File	Segment	Position	Code		Seg_Start	Seg_End	Word	Word_St
 						endif
 
 						if condition_met == 1
-							window_Start = Get start point... 2 int - window_Size
-							window_End = Get end point... 2 int + window_Size
+							window_Start = Get start point... 2 max(1,int - window_Size)
+							window_End = Get end point... 2 min(int + window_Size, word_Intervals)
 							window_Dur = window_End - window_Start
 				
 
@@ -226,7 +226,7 @@ fileappend 'outfile$'	File	Segment	Position	Code		Seg_Start	Seg_End	Word	Word_St
 							post_Seg_Dur = post_Seg_End - post_Seg_Start
 
 							editor TextGrid 'file$'
-							Zoom... window_Start window_End
+							Zoom... max(1,window_Start) min(window_End, word_Intervals)
 							Play window
 			
 							beginPause ("Code it")
