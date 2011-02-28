@@ -53,18 +53,18 @@
 
 
 form Search Settings
-	word file carterDNC1976_5
+	word file speaker
 	word outfile outfile.txt
-	sentence Search_Segments R ER0 ER1 ER2
+	sentence Search_Segments T D
 	comment Word context
 	boolean End_Of_Word 1
 	boolean Start_Of_Word 0
 	boolean Word_Internal 0
-	sentence Search_Pre_Context 
+	sentence Search_Pre_Context consonant
 	sentence Search_Post_Context
-	sentence Stop_Pre_Context 
-	sentence Stop_Post_Context 
-	sentence Stop_Words
+	sentence Stop_Pre_Context R
+	sentence Stop_Post_Context T D TH DH CH JH
+	sentence Stop_Words AND
 	positive Window_Size 3
 	sentence Default_Code  
 endform
@@ -119,7 +119,7 @@ endeditor
 select TextGrid 'file$'
 
 
-fileappend 'outfile$'	File	Segment	Position	Code		Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
+#fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
 
 		word_Intervals = Get number of intervals... 2
 		for int from 1 to word_Intervals
@@ -227,16 +227,24 @@ fileappend 'outfile$'	File	Segment	Position	Code		Seg_Start	Seg_End	Word	Word_St
 
 							editor TextGrid 'file$'
 							Zoom... max(1,window_Start) min(window_End, word_Intervals)
-							Play window
-			
+							#Play window
+							coded = 0
+							
+							while coded == 0
 							beginPause ("Code it")
 								comment("'word$' 'location$'")
 								comment("Code")
 								text ("code", default_Code$)
 								comment("Comments")
 								text ("comment", "")
+							#	Play window
+							click = endPause ("Play", "Continue", 1)
+							if click == 1
 								Play window
-							endPause ("Continue", 1)
+							else
+								coded = 1
+							endif
+							endwhile
 							endeditor
 							fileappend 'outfile$' 'file$'	'seg$'	'location$'	'code$'	'seg_Start:3'	'seg_End:3'	'word$'	'word_Start:3'	'word_End:3'	'pre_Seg$'	'pre_Seg_Start:3'	'pre_Seg_End:3'	'post_Seg$'	'post_Seg_Start:3'	'post_Seg_End:3'	'real_Dur:3'	'vowels_Per_Second:3'	'comment$''newline$'
 
