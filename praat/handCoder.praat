@@ -62,7 +62,7 @@ form Search Settings
 	boolean Word_Internal 0
 	sentence Search_Pre_Context consonant
 	sentence Search_Post_Context
-	sentence Stop_Pre_Context R
+	sentence Stop_Pre_Context R ER
 	sentence Stop_Post_Context T D TH DH CH JH
 	sentence Stop_Words AND
 	positive Window_Size 3
