@@ -315,16 +315,6 @@ if __name__ == '__main__':
     measurements = loadfile(file)
     measurements = choosePoles(measurements, 4)
     remeasurements = remeasure(measurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
-    remeasurements = remeasure(remeasurements)
 
     output(remeasurements)
 

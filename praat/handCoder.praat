@@ -119,7 +119,7 @@ endeditor
 select TextGrid 'file$'
 
 
-#fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
+fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
 
 		word_Intervals = Get number of intervals... 2
 		for int from 1 to word_Intervals
