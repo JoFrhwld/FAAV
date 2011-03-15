@@ -53,20 +53,26 @@
 
 
 form Search Settings
+	comment File Settings
 	word file speaker
 	word outfile outfile.txt
+	comment Segments to Search For
 	sentence Search_Segments T D
 	comment Word context
 	boolean End_Of_Word 1
 	boolean Start_Of_Word 0
-	boolean Word_Internal 0
+	boolean Word_Internal 0 
+	comment Search Context
 	sentence Search_Pre_Context consonant
 	sentence Search_Post_Context
+	comment Exclusion Contexts
 	sentence Stop_Pre_Context R ER
 	sentence Stop_Post_Context T D TH DH CH JH
 	sentence Stop_Words AND
+	comment Extra Settings
 	positive Window_Size 3
-	sentence Default_Code  
+	sentence Default_Code 
+	real Start_Time 0 
 endform
 
 #log_file = file$ + ".log"
@@ -122,7 +128,8 @@ select TextGrid 'file$'
 fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
 
 		word_Intervals = Get number of intervals... 2
-		for int from 1 to word_Intervals
+		start_Interval = Get interval at time... 2 start_Time
+		for int from start_Interval to word_Intervals
 			word$ = Get label of interval... 2 int
 			word_Start = Get start point... 2 int
 			word_End = Get end point... 2 int
