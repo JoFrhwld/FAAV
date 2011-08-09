@@ -209,7 +209,10 @@ def defSyl(syl,n):
         "hiatus" : ["hiatus","voiced","hiatus"],
         "final" : ["final","final","final"]
         }
-    thisseg = segfeatures[folseg]
+    if folseg in segfeatures:
+        thisseg = segfeatures[folseg]
+    else:
+        thisseg = ["NA","NA","NA"]
 
     sylinfo = [vowel,str(nfollowing),coda,final,folseg,onset,preseg,thisseg[0],thisseg[1],thisseg[2]]
     return sylinfo

@@ -144,8 +144,8 @@ fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Sta
 					if index(search_Segments$, " "+seg$+" ") > 0
 						condition_met = 0
 				
-						seg_Start = Get start point... 1 int
-						seg_End = Get end point... 1 int
+						seg_Start = Get start point... 1 ph_Int
+						seg_End = Get end point... 1 ph_Int
 						seg_Dur = seg_End-seg_Start
 						seg_Mid = seg_Start + (seg_Dur/2)
 
