@@ -162,7 +162,7 @@ endeditor
 select TextGrid 'file$'
 
 if start_Time == 0
-	fileappend 'outfile$'	File	Segment	Position	Code1	Code2	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
+	fileappend 'outfile$'	File	Segment	Position	Code1	Code2	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments	Warnings'newline$'
 endif
 
 		word_Intervals = Get number of intervals... 2
