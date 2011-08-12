@@ -59,21 +59,58 @@ form Search Settings
 	comment Segments to Search For
 	sentence Search_Segments T D
 	comment Word context
-	boolean End_Of_Word 1
-	boolean Start_Of_Word 0
-	boolean Word_Internal 0 
+	optionmenu Context: 1
+		option End of word
+		option Start of word
+		option Word internal
+		option Internal and End of word
+		option Internal and Start of word
+		option Start and End of word
+		option All contexts
+	#boolean End_Of_Word 1
+	#boolean Start_Of_Word 0
+	#boolean Word_Internal 0 
 	comment Search Context
 	sentence Search_Pre_Context consonant
 	sentence Search_Post_Context
+	sentence Word_String_Search
 	comment Exclusion Contexts
 	sentence Stop_Pre_Context R ER
 	sentence Stop_Post_Context T D TH DH CH JH
 	sentence Stop_Words AND
 	comment Extra Settings
 	positive Window_Size 3
-	sentence Default_Code 
+	sentence Default_Code1
+	sentence Default_Code2
 	real Start_Time 0 
+	boolean Play_on_Continue 0
 endform
+
+end_Of_Word = 0
+start_Of_Word = 0
+word_Internal = 0
+
+if context == 1
+	end_Of_Word = 1
+elsif context == 2
+	start_Of_Word = 1
+elsif context == 3
+	word_Internal = 1
+elsif context == 4
+	word_Internal = 1
+	end_Of_Word = 1
+elsif context == 5
+	word_Internal = 1
+	start_Of_Word = 1
+elsif context == 6
+	start_Of_Word = 1
+	end_Of_Word = 1
+elseif context == 7
+	end_Of_Word = 1
+	start_Of_Word = 1
+	word_Internal = 1
+endif
+	
 
 #log_file = file$ + ".log"
 
@@ -124,8 +161,9 @@ endeditor
 
 select TextGrid 'file$'
 
-
-fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
+if start_Time == 0
+	fileappend 'outfile$'	File	Segment	Position	Code1	Code2	Seg_Start	Seg_End	Word	Word_Start	Word_End	Pre_Seg	Pre_Seg_Start	Pre_Seg_End	Post_Seg	Post_Seg_Start	Post_Seg_End	Window	Vowels_per_Second	Comments'newline$'
+endif
 
 		word_Intervals = Get number of intervals... 2
 		start_Interval = Get interval at time... 2 start_Time
@@ -234,16 +272,26 @@ fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Sta
 
 							editor TextGrid 'file$'
 							Zoom... max(1,window_Start) min(window_End, word_Intervals)
-							#Play window
+							if play_on_Continue = 1
+								Play window
+							endif
 							coded = 0
 							
 							while coded == 0
 							beginPause ("Code it")
 								comment("'word$' 'location$'")
-								comment("Code")
-								text ("code", default_Code$)
+								comment("Code 1")
+								text ("code1", default_Code1$)
+								comment("Code 2")
+								text ("code2", default_Code1$)
 								comment("Comments")
 								text ("comment", "")
+								comment("Preceding Segment")
+								text("Preceding_Segment", pre_Seg$)
+								comment("Following Segment")
+								text("Following_Segment", post_Seg$)
+								comment("Reject this token?")
+								boolean("Reject", 0)
 							#	Play window
 							click = endPause ("Play", "Continue", 1)
 							if click == 1
@@ -253,8 +301,18 @@ fileappend 'outfile$'	File	Segment	Position	Code	Seg_Start	Seg_End	Word	Word_Sta
 							endif
 							endwhile
 							endeditor
-							fileappend 'outfile$' 'file$'	'seg$'	'location$'	'code$'	'seg_Start:3'	'seg_End:3'	'word$'	'word_Start:3'	'word_End:3'	'pre_Seg$'	'pre_Seg_Start:3'	'pre_Seg_End:3'	'post_Seg$'	'post_Seg_Start:3'	'post_Seg_End:3'	'real_Dur:3'	'vowels_Per_Second:3'	'comment$''newline$'
-
+							warning$ = ""
+							if preceding_Segment$ <> pre_Seg$
+								warning$ = "PreSeg Changed"
+								pre_Seg$ = preceding_Segment$
+							endif
+							if following_Segment$ <> post_Seg$
+								warning$ = "PostSeg Changed"
+								post_Seg$ = following_Segment$
+							endif
+							if reject ==0
+								fileappend 'outfile$' 'file$'	'seg$'	'location$'	'code1$'	'code2$'	'seg_Start:3'	'seg_End:3'	'word$'	'word_Start:3'	'word_End:3'	'pre_Seg$'	'pre_Seg_Start:3'	'pre_Seg_End:3'	'post_Seg$'	'post_Seg_Start:3'	'post_Seg_End:3'	'real_Dur:3'	'vowels_Per_Second:3'	'comment$'	'warning$''newline$'
+							endif
 						endif		
 					endif
 				endfor
