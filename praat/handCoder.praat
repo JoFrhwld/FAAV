@@ -105,7 +105,7 @@ elsif context == 5
 elsif context == 6
 	start_Of_Word = 1
 	end_Of_Word = 1
-elseif context == 7
+elsif context == 7
 	end_Of_Word = 1
 	start_Of_Word = 1
 	word_Internal = 1
