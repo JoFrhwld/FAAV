@@ -219,6 +219,10 @@ def repredictF1F2(measurements, vowelMeans, vowelCovs, vowels):
                         valuesList.append([float(vm.f1), float(vm.f2), vm.f3, math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3, lDur])
                         distanceList.append(0)
                         nFormantsList.append(i + 3)
+                    elif robjects.r['det'](vowelCovs[vowel])[0] == 0:
+                        valuesList.append([float(vm.f1), float(vm.f2), vm.f3, math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3, lDur])
+                        distanceList.append(0)
+                        nFormantsList.append(i + 3)                        
                     else:  
                         dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]   
                         valuesList.append(outvalues)
