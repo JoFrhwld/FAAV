@@ -3,7 +3,7 @@
 #################################################################################
 ##       !!! This is NOT the original extractFormants.py file !!!              ##
 ##                                                                             ##
-## Last modified by Ingrid Rosenfelder:  November 3, 2010                      ##
+## Last modified by Ingrid Rosenfelder:  June 16, 2011                         ##
 ## - all comments beginning with a double pound sign ("##")                    ##
 ## - docstrings for all classes and functions                                  ##
 ## - alphabetic ordering outside of main program:                              ##
@@ -37,6 +37,10 @@
 ## - integrated remeasurement.py                                               ##
 ## - new options:  remeasurement and candidates                                ##
 ## - fixed checkTextGrid so that compatible with FA online interface output    ##
+## - added ethnicity and location to speaker object & changed output file      ##
+## - added "both" as output option (writes Plotnik file AND text file)         ##
+## - added "--speaker=speakerfile" option                                      ##
+## - added normalization and calculation of means for each vowel class         ##
 #################################################################################
 
 
@@ -57,79 +61,109 @@ import rpy2.robjects as robjects
 import re
 import time
 import remeasure
+import math
 
 uncertain = re.compile(r"\(\(([\*\+]?['\w]+\-?)\)\)")
 
+#################################################################################
 
 class Phone:
     """represents a single phone (label, times and Plotnik code (for vowels))"""
     ## !!! not the same as class cmu.Phone !!!
-    label = ''      ## phone label (Arpabet coding)
-    code = ''       ## Plotnik vowel code ("xx.xxxxx") 
-    xmin = None     ## beginning of phone
-    xmax = None     ## end of phone
-    cd = ''         ## Plotnik code:  vowel class
-    fm = ''         ## Plotnik code:  following segment - manner
-    fp = ''         ## Plotnik code:  following segment - place
-    fv = ''         ## Plotnik code:  following segment - voice
-    ps = ''         ## Plotnik code:  preceding segment
-    fs = ''         ## Plotnik code:  following sequences
-    overlap = False
-    pp = None       ## preceding phone (Arpabet label)
+    def __init__(self):
+        self.label = ''      ## phone label (Arpabet coding)
+        self.code = ''       ## Plotnik vowel code ("xx.xxxxx") 
+        self.xmin = None     ## beginning of phone
+        self.xmax = None     ## end of phone
+        self.cd = ''         ## Plotnik code:  vowel class
+        self.fm = ''         ## Plotnik code:  following segment - manner
+        self.fp = ''         ## Plotnik code:  following segment - place
+        self.fv = ''         ## Plotnik code:  following segment - voice
+        self.ps = ''         ## Plotnik code:  preceding segment
+        self.fs = ''         ## Plotnik code:  following sequences
+        self.overlap = False
+        self.pp = None       ## preceding phone (Arpabet label)
+        self.arpa = ''       ## Arpabet coding WITHOUT stress digit
+        self.stress = None   ## stress digit
 
 
 class Speaker:
     """represents a speaker (background info)"""
-    name = ''
-    first_name = ''
-    last_name = ''
-    age = ''
-    sex = ''
-    city = 'Philadelphia'
-    state = 'PA'
-    year = None             ## year of recording
-    tiernum = None          ## tiernum points to phone tier = first tier for given speaker
+    def __init__(self):
+        self.name = ''
+        self.first_name = ''
+        self.last_name = ''
+        self.age = ''
+        self.sex = ''
+        self.ethnicity = ''
+        self.years_of_schooling = ''
+        self.location = ''
+        self.city = ''   #'Philadelphia'
+        self.state = ''  #'PA'
+        self.year = None             ## year of recording
+        self.tiernum = None          ## tiernum points to phone tier = first tier for given speaker
 
-    
+       
 class VowelMeasurement:
     """represents a vowel measurement"""
     ## !!! not the same as class plotnik.VowelMeasurement !!!
-    phone = ''          ## Arpabet coding
-    stress = ''         ## stress level ("1", "2", "0")
-    style = ''          ## style label (if present)
-    word = ''           ## corresponding word
-    f1 = None           ## first formant
-    f2 = None           ## second formant
-    f3 = None           ## third formant
-    b1 = None           ## bandwidth of first formant
-    b2 = None           ## bandwidth of second formant
-    b3 = None           ## bandwidth of third formant
-    t = ''              ## time of measurement
-    code = ''           ## Plotnik vowel code ("xx.xxxxx")
-    cd = ''             ## Plotnik code for vowel class
-    fm = ''             ## Plotnik code for manner of following segment
-    fp = ''             ## Plotnik code for place of following segment
-    fv = ''             ## Plotnik code for voicing of following segment
-    ps = ''             ## Plotnik code for preceding segment
-    fs = ''             ## Plotnik code for following sequences
-    text = ''           ## ???
-    beg = None          ## beginning of vowel
-    end = None          ## end of vowel
-    dur = None          ## duration of vowel
-    poles = []          ## original list of poles returned by LPC analysis
-    bandwidths = []     ## original list of bandwidths returned by LPC analysis
-    nFormants = None    ## actual formant settings used in the measurement (for Mahalanobis distance method)
-    glide = ''          ## Plotnik glide coding
+    def __init__(self):
+        self.phone = ''          ## Arpabet coding
+        self.stress = ''         ## stress level ("1", "2", "0")
+        self.style = ''          ## style label (if present)
+        self.word = ''           ## corresponding word
+        self.f1 = None           ## first formant
+        self.f2 = None           ## second formant
+        self.f3 = None           ## third formant
+        self.b1 = None           ## bandwidth of first formant
+        self.b2 = None           ## bandwidth of second formant
+        self.b3 = None           ## bandwidth of third formant
+        self.t = ''              ## time of measurement
+        self.code = ''           ## Plotnik vowel code ("xx.xxxxx")
+        self.cd = ''             ## Plotnik code for vowel class
+        self.fm = ''             ## Plotnik code for manner of following segment
+        self.fp = ''             ## Plotnik code for place of following segment
+        self.fv = ''             ## Plotnik code for voicing of following segment
+        self.ps = ''             ## Plotnik code for preceding segment
+        self.fs = ''             ## Plotnik code for following sequences
+        self.text = ''           ## ???
+        self.beg = None          ## beginning of vowel
+        self.end = None          ## end of vowel
+        self.dur = None          ## duration of vowel
+        self.poles = []          ## original list of poles returned by LPC analysis
+        self.bandwidths = []     ## original list of bandwidths returned by LPC analysis
+        self.nFormants = None    ## actual formant settings used in the measurement (for Mahalanobis distance method)
+        self.glide = ''          ## Plotnik glide coding
+        self.norm_f1 = None      ## normalized F1
+        self.norm_f2 = None      ## normalized F2
+        self.norm_f3 = None      ## normalized F3
 
 
+class VowelMean:
+    """represents the mean and standard deviation for a given vowel class"""
+    def __init__(self):
+        self.pc = ''                     ## Plotnik vowel class
+        self.means = ['', '', '']        ## means for F1, F2, F3
+        self.stdvs = ['', '', '']        ## standard deviations for F1, F2, F3
+        self.n = [0, 0, 0]               ## number of tokens used to calculate means and standard deviations
+        self.values = [[], [], []]       ## formant values from individual tokens
+        self.norm_means = ['', '', '']   ## normalized means
+        self.norm_stdvs = ['', '', '']   ## normalized standard deviations
+
+    def __str__(self):
+        return '<Means for vowel class %s:  means=%s, stdvs=%s, tokens=%s,\nnormalized:  means=%s, stdvs=%s, values:\n\tF1:  %s,\n\tF2:  %s,\n\tF3:  %s>' % (self.pc, self.means, self.stdvs, self.n, self.norm_means, self.norm_stdvs, self.values[0], self.values[1], self.values[2])
+
+    
 class Word:
     """represents a word (transcription, times and list of phones)"""
-    transcription = ''  ## transcription
-    phones = []         ## list of phones
-    xmin = None         ## beginning of word
-    xmax = None         ## end of word
-    style = ''          ## style label (if present)
+    def __init__(self):
+        self.transcription = ''  ## transcription
+        self.phones = []         ## list of phones
+        self.xmin = None         ## beginning of word
+        self.xmax = None         ## end of word
+        self.style = ''          ## style label (if present)
 
+#################################################################################
 
 def addOverlaps(words, tg, speaker):
     """for a given speaker, checks each phone interval against overlaps on other tiers"""
@@ -163,14 +197,14 @@ def addOverlaps(words, tg, speaker):
     return words
 
 
-def addPlotnikCodes(words, phoneset):
+def addPlotnikCodes(words, phoneset, speaker, filename):
     """takes a list of words and adds Plotnik codes to the vowels"""
     for w in words:
         n = getNumVowels(w)
         if n == 0:
             continue
         for i in range(len(w.phones)):
-            code, prec_p = plotnik.cmu2plotnik_code(i, w.phones, w.transcription, phoneset)
+            code, prec_p = plotnik.cmu2plotnik_code(i, w.phones, w.transcription, phoneset, speaker, filename)
             if code:    ## no code returned if it's a consonant
                 w.phones[i].code = code                 ## whole code
                 w.phones[i].cd = code.split('.')[0]     ## vowel class code
@@ -196,8 +230,10 @@ def addStyleCodes(words, tg):
             elif s.mark().upper() == "SP":  ## empty intervals
                 pass
             else:  ## this should not happen, as correct format of style tier entries is already checked prior to forced alignment
-                print "ERROR!  Incorrect style tier entry %s for word %s." % (s.mark(), words[i].transcription)
-                sys.exit()
+##                print "ERROR!  Incorrect style tier entry %s for word %s." % (s.mark(), words[i].transcription)
+##                sys.exit()
+                ## let people have whatever entries they want - they will just not be converted into Plotnik style codes
+                words[i].style = s.mark().upper() 
             i += 1
     return words
 
@@ -215,6 +251,76 @@ def anae(v, formants, times):
         i = F1.index(max(F1))
     measurementPoint = times[i]
     return measurementPoint
+
+
+def calculateMeans(measurements):
+    """takes a list of vowel measurements and calculates the means for each vowel class"""
+    ##  initialize vowel means
+    means = {}
+    for p in plotnik.PLOTNIKCODES:
+        newmean = VowelMean()
+        newmean.pc = p
+        means[p] = newmean
+    ## process measurements
+    for m in measurements:
+        ## only include tokens with primary stress
+        if m.stress != '1':
+            continue
+        ## exclude tokens with F1 < 200 Hz
+        if m.f1 < 200:
+            continue
+        ## exclude glide measurements
+        if m.glide == 'g':
+            continue
+        ## exclude function words
+        if m.word.upper() in ['A', 'AH', 'AM', "AN'", 'AN', 'AND', 'ARE', "AREN'T", 'AS', 'AT', 'AW', 'BECAUSE', 'BUT', 'COULD',
+                              'EH', 'FOR', 'FROM', 'GET', 'GONNA', 'GOT', 'GOTTA', 'GOTTEN',
+                              'HAD', 'HAS', 'HAVE', 'HE', "HE'S", 'HIGH', 'HUH',
+                              'I', "I'LL", "I'M", "I'VE", "I'D", 'IN', 'IS', 'IT', "IT'S", 'ITS', 'JUST', 'MEAN', 'MY',
+                              'NAH', 'NOT', 'OF', 'OH', 'ON', 'OR', 'OUR', 'SAYS', 'SHE', "SHE'S", 'SHOULD', 'SO',
+                              'THAN', 'THAT', "THAT'S", 'THE', 'THEM', 'THERE', "THERE'S", 'THEY', 'TO', 'UH', 'UM', 'UP',
+                              'WAS', "WASN'T", 'WE', 'WERE', 'WHAT', 'WHEN', 'WHICH', 'WHO', 'WITH', 'WOULD',
+                              'YEAH', 'YOU', "YOU'VE"]:
+            continue
+        ## exclude /ae, e, i, aw/ before nasals
+        if m.cd in ['3', '2', '1', '42'] and m.fm == '4':
+            continue
+        ## exclude vowels before /l/
+        if m.fm == '5' and not m.cd == '39':
+            continue
+        ## exclude vowels after /w, y/
+        if m.ps == '9':
+            continue
+        ## exclude vowels after obstruent + liquid clusters
+        if m.ps == '8':
+            continue
+        ## add measurements to means object
+        if m.f1:
+            means[m.cd].values[0].append(m.f1)
+        if m.f2:
+            means[m.cd].values[1].append(m.f2)
+        if m.f3:
+            means[m.cd].values[2].append(m.f3)
+        
+##    print "\ndata (in calculateMeans):\n"
+##    for p in plotnik.PLOTNIKCODES:
+##        for i in range(3):
+##            print p, "\t", "F", i+1, '\t', means[p].values[i], "(", len(means[p].values[i]), ")"
+
+    ## calculate means and standard deviations
+    for p in plotnik.PLOTNIKCODES:
+        for i in range(3):
+            means[p].n[i] = len(means[p].values[i])       ## number of tokens for formant i
+            mean, stdv = mean_stdv(means[p].values[i])    ## mean and standard deviation for formant i
+            if mean:
+                means[p].means[i] = round(mean, 0)
+            if stdv:
+                means[p].stdvs[i] = round(stdv, 0)
+##    print "\nmeans (in calculateMeans):\n"
+##    for p in plotnik.PLOTNIKCODES:
+##        print p, "\t", means[p]
+    
+    return means
 
 
 def changeCase(word, case):
@@ -260,10 +366,10 @@ def checkConfigValue(f, option, value):
         allowedValues = ['lower', 'upper']
         checkAllowedValues(f, option, value, allowedValues)
     if option == 'outputFormat':
-        allowedValues = ['txt', 'text', 'plotnik', 'Plotnik']
+        allowedValues = ['txt', 'text', 'plotnik', 'Plotnik', 'plt', 'both']
         checkAllowedValues(f, option, value, allowedValues)
     if option == 'formantPredictionMethod':
-        allowedValues = ['default', 'mahalanobis','reremeasurement']
+        allowedValues = ['default', 'mahalanobis']
         checkAllowedValues(f, option, value, allowedValues)
     if option == 'measurementPointMethod':
         allowedValues = ['fourth', 'third', 'mid', 'lennig', 'anae', 'faav', 'maxint']
@@ -272,7 +378,7 @@ def checkConfigValue(f, option, value):
         allowedValues = ['praat', 'Praat', 'esps', 'ESPS']
         checkAllowedValues(f, option, value, allowedValues)
     if option in ['removeStopWords', 'measureUnstressed', 'outputHeader', 'multipleFiles', 'remeasurement', 'candidates']:
-        allowedValues = ['T', 'F']
+        allowedValues = ['T', 'F', 'True', 'False']
         checkAllowedValues(f, option, value, allowedValues)
 
 
@@ -292,9 +398,11 @@ def checkSpeechSoftware(speechSoftware):
         else:
             return 'esps'
     elif speechSoftware in ['praat', 'Praat']:
-        if not programExists('praat'):
+        if not ((PRAATPATH and programExists('praat', PRAATPATH)) or programExists('praat')):
             print "ERROR:  Praat was specified as the speech analysis program, but the command 'praat' is not in your path"
+            sys.exit()
         else:
+
             return 'praat'
     else:
         print "ERROR:  unsupported speech analysis software %s" % speechSoftware
@@ -306,7 +414,7 @@ def checkTextGridFile(tgFile):
     checkLocation(tgFile)
     lines = open(tgFile, 'r').readlines()
     if 'File type = "' not in lines[0]:
-        print "ERROR:  %s does not appear to be a Praat TextGrid file (the string 'File type=' does not appear in the first line" % tgFile
+        print "ERROR:  %s does not appear to be a Praat TextGrid file (the string 'File type=' does not appear in the first line.)" % tgFile
         sys.exit()
 
 
@@ -382,9 +490,9 @@ def detectMonophthong(formants, measurementPoint, index):
 def extractPortion(wavFile, vowelWavFile, beg, end, soundEditor):
     """extracts a single vowel (or any other part) from the main sound file"""
     if soundEditor == 'sox':  ## this is the default setting, since it's faster
-        os.system('sox ' + wavFile + ' ' + os.path.join(SCRIPTS_HOME, vowelWavFile) + ' trim ' + str(beg) + ' ' + str(end - beg))
+        os.system(os.path.join(SOXPATH, 'sox') + ' ' + wavFile + ' ' + os.path.join(SCRIPTS_HOME, vowelWavFile) + ' trim ' + str(beg) + ' ' + str(end - beg))
     elif soundEditor == 'praat':
-        os.system('praat ' + SCRIPTS_HOME + '/extractSegment.praat ' + os.path.join(os.path.pardir, wavFile)  + ' ' + vowelWavFile + ' ' + str(beg) + ' ' + str(end))
+        os.system(os.path.join(PRAATPATH, 'praat') + ' ' + SCRIPTS_HOME + '/extractSegment.praat ' + os.path.join(os.path.pardir, wavFile)  + ' ' + vowelWavFile + ' ' + str(beg) + ' ' + str(end))
     else:
         pass
 
@@ -509,9 +617,9 @@ def getPadding(phone, windowSize, maxTime):
 def getSoundEditor():
     """checks whether SoX or Praat are available as sound editors"""
     # use sox for manipulating the files if we have it, since it's faster
-    if programExists('sox'):
+    if (SOXPATH and programExists('sox', SOXPATH)) or programExists('sox'):
         soundEditor = 'sox'
-    elif programExists('praat'):
+    elif (PRAATPATH and programExists('praat', PRAATPATH)) or programExists('praat'):
         soundEditor = 'praat'
     else:
         print "ERROR:  neither 'praat' nor 'sox' can be found in your path"
@@ -524,37 +632,40 @@ def getSpeakerBackground(speakername, speakernum):
     """prompts the user to enter background information for a given speaker"""
     speaker = Speaker()
     print "Please enter background information for speaker %s:" % speakername
-    print "(Press [return] if correct; if not, enter new data.)"
-    speaker.name = raw_input("Name:\t\t%s" % speakername.strip())
+    print "(Press [return] if correct; if not, simply enter new data (do not use [delete]).)"
+    speaker.name = raw_input("Name:\t\t\t%s\t" % speakername.strip())
     if not speaker.name:
         speaker.name = speakername.strip()
     try:
-        speaker.first_name = raw_input("First name:\t%s" % speaker.name.strip().split()[0])
+        speaker.first_name = raw_input("First name:\t\t%s\t" % speaker.name.strip().split()[0])
         if not speaker.first_name:
             speaker.first_name = speaker.name.strip().split()[0]
         ## some speakers' last names are not known!
         try:
-            speaker.last_name = raw_input("Last name:\t%s" % speaker.name.strip().split()[1])
+            ## NOTE:  only initial letter of speaker's last name is automatically taken over from tier name
+            speaker.last_name = raw_input("Last name:\t\t%s\t" % speaker.name.strip().split()[1][0])
             if not speaker.last_name:
-                speaker.last_name = speaker.name.strip().split()[1]
+                speaker.last_name = speaker.name.strip().split()[1][0]
         except IndexError:
-            speaker.last_name = raw_input("Last name:\t")
+            speaker.last_name = raw_input("Last name:\t\t")
     except:
         speaker.first_name = ''
         speaker.last_name = ''
-    speaker.age = raw_input("Age:\t\t")
-    speaker.sex = raw_input("Sex:\t\t")
+    speaker.sex = raw_input("Sex:\t\t\t")
     ## check that speaker sex is defined - this is required for the Mahalanobis method!
     if formantPredictionMethod == "mahalanobis":
         if not speaker.sex:
             print "ERROR!  Speaker sex must be defined for the 'mahalanobis' formantPredictionMethod!"
             sys.exit()
-    speaker.city = raw_input("City:\t\tPhiladelphia")
-    if not speaker.city:
-        speaker.city = "Philadelphia"
-    speaker.state = raw_input("State:\t\tPA")
-    if not speaker.state:
-        speaker.state = "PA"
+    speaker.age = raw_input("Age:\t\t\t")
+##    speaker.city = raw_input("City:\t\tPhiladelphia")
+##    if not speaker.city:
+##        speaker.city = "Philadelphia"
+##    speaker.state = raw_input("State:\t\tPA")
+##    if not speaker.state:
+##        speaker.state = "PA"
+    speaker.ethnicity = raw_input("Ethnicity:\t\t")
+    speaker.location = raw_input("Location:\t\t")
     speaker.year = raw_input("Year of recording:\t")
     speaker.tiernum = speakernum * 2    ##  tiernum points to phone tier = first tier for given speaker
 
@@ -628,7 +739,7 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
         esps.rmFormantFiles(vowelFileStem)
     ## via Praat:  ## NOTE:  all temp files are in the "/bin" directory!
     else:   # assume praat here
-        if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == 'reremeasurement':
+        if formantPredictionMethod == 'mahalanobis':
             ## adjust maximum formant frequency to speaker sex
             if speaker.sex in ["m", "M", "male", "MALE"]:
                 maxFormant = 5000
@@ -640,26 +751,25 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
             LPCs = []
             nFormants = 3
             while nFormants <= 6:
-                os.system('praat ' + os.path.join(SCRIPTS_HOME, 'extractFormants.praat') + ' ' + vowelWavFile + ' ' + str(nFormants) + ' ' + str(maxFormant) + ' ' ' ' + str(windowSize) + ' ' + str(preEmphasis) + ' burg')
+                os.system(os.path.join(PRAATPATH, 'praat') + ' ' + os.path.join(SCRIPTS_HOME, 'extractFormants.praat') + ' ' + vowelWavFile + ' ' + str(nFormants) + ' ' + str(maxFormant) + ' ' ' ' + str(windowSize) + ' ' + str(preEmphasis) + ' burg')
                 lpc = praat.Formant()
                 lpc.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
                 LPCs.append(lpc)
                 nFormants +=1
-            
         else:
-            os.system('praat ' + os.path.join(SCRIPTS_HOME, 'extractFormants.praat') + ' ' + vowelWavFile + ' ' + str(nFormants) + ' ' + str(maxFormant) + ' ' + str(windowSize) + ' ' + str(preEmphasis) + ' burg')
+            os.system(os.path.join(PRAATPATH, 'praat') + ' ' + os.path.join(SCRIPTS_HOME, 'extractFormants.praat') + ' ' + vowelWavFile + ' ' + str(nFormants) + ' ' + str(maxFormant) + ' ' + str(windowSize) + ' ' + str(preEmphasis) + ' burg')
             fmt = praat.Formant()
             fmt.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
         os.remove(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Formant'))
         ## get Intensity object for intensity cutoff
-        os.system('praat ' + os.path.join(SCRIPTS_HOME, 'getIntensity.praat') + ' ' + vowelWavFile)
+        os.system(os.path.join(PRAATPATH, 'praat') + ' ' + os.path.join(SCRIPTS_HOME, 'getIntensity.praat') + ' ' + vowelWavFile)
         intensity = praat.Intensity()
         intensity.read(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Intensity'))
         os.remove(os.path.join(SCRIPTS_HOME, vowelFileStem + '.Intensity'))
         intensity.change_offset(p.xmin - padBeg)
     ## get measurement according to formant prediction method
     ## Mahalanobis:
-    if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == 'reremeasurement':
+    if formantPredictionMethod == 'mahalanobis':
         convertedTimes = []
         poles = []
         bandwidths = []
@@ -679,7 +789,7 @@ def getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMe
     return vm
 
 
-def getWordsAndPhones(tg, phoneset, speaker):
+def getWordsAndPhones(tg, phoneset, speaker, filename):
     """takes a Praat TextGrid file and returns a list of the words in the file,
     along with their associated phones, and Plotnik codes for the vowels"""
     words = []
@@ -701,7 +811,7 @@ def getWordsAndPhones(tg, phoneset, speaker):
             phone.xmax = tg[speaker.tiernum][i].xmax()
             word.phones.append(phone)
             ## count initial number of vowels here! (because uncertain transcriptions are discareded on a by-word basis)
-            if isVowel(phone.label):
+            if phone.label and isVowel(phone.label):
                 global count_vowels
                 count_vowels += 1 
             i += 1
@@ -709,7 +819,7 @@ def getWordsAndPhones(tg, phoneset, speaker):
         if w.mark() != "((xxxx))" and w.mark().upper() != "SP":
             words.append(word)
     ## add Plotnik-style codes for the preceding and following segments for all vowels
-    words = addPlotnikCodes(words, phoneset)
+    words = addPlotnikCodes(words, phoneset, speaker, filename)
     ## add style codes, if applicable
     if len(tg) % 2:
         #print "Adding style codes..."
@@ -782,6 +892,30 @@ def maximumIntensity(intensities, times):
     return measurementPoint
 
 
+def mean_stdv(valuelist):
+    """returns the arithmetic mean and sample standard deviation (N-1 in the denominator) of a list of values"""
+    n = len(valuelist)
+    if n > 0:
+        if n == 1:
+            mean = valuelist[0]
+            stdv = 0
+        else:
+            sum_i = 0
+            for i in range(n):
+                sum_i += valuelist[i]
+            mean = sum_i / n
+            diffsum_i = 0
+            for i in range(n):
+                diffsum_i += (valuelist[i] - mean)**2
+            stdv = math.sqrt(diffsum_i / (n - 1))
+
+    else:  ## empty list
+        mean = None
+        stdv = None
+
+    return mean, stdv
+
+
 def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPointMethod, formantPredictionMethod, padBeg, padEnd, means, covs):
     """returns vowel measurement (formants, bandwidths, labels, Plotnik codes)"""
 
@@ -807,23 +941,6 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
             selectedbandwidths.append(bandwidths[j][i])
         f1, f2, f3, b1, b2, b3, winnerIndex = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
         measurementPoint = measurementPoints[winnerIndex][0]
-    elif formantPredictionMethod == "reremeasurement":
-        selectedpoles = []
-        selectedbandwidths = []
-        measurementPoints = []
-
-        for j in range(4):
-            ## get point of measurement and corresponding index (closest to point of measurement) according to method specified in config file
-            ## NOTE:  Point of measurement and time index will be the same for "third", "mid", "fourth" methods for all values of nFormants
-            ##        For "lennig", "anae" and "faav", which depend on the curvature of the formant tracks, different results will be obtained for different nFormants settings.
-            measurementPoint = getMeasurementPoint(phone, poles[j], times[j], intensity, measurementPointMethod)
-            i = getTimeIndex(measurementPoint, times[j])
-            measurementPoints.append((measurementPoint, i))
-            selectedpoles.append(poles[j][i])
-            selectedbandwidths.append(bandwidths[j][i])
-        f1, f2, f3, b1, b2, b3, winnerIndex = predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs)
-        measurementPoint = measurementPoints[winnerIndex][0]
-        
         
     else:  ## formantPredictionMethod == 'default'
         measurementPoint = getMeasurementPoint(phone, poles[0], times[0], intensity, measurementPointMethod)
@@ -866,11 +983,84 @@ def measureVowel(phone, word, poles, bandwidths, times, intensity, measurementPo
     vm.dur = round(phone.xmax - phone.xmin, 3)  ## duration of vowel (rounded to msec)
     vm.poles = selectedpoles                    ## original poles returned by LPC analysis
     vm.bandwidths = selectedbandwidths          ## original bandwidths returned by LPC analysis
-    if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == "reremeasurement":
+    if formantPredictionMethod == 'mahalanobis':
         vm.nFormants = winnerIndex + 3          ## actual formant settings used in the analysis
         if phone.label[:-1] == "AY":
             vm.glide = detectMonophthong(poles[winnerIndex], measurementPoints[winnerIndex][0], measurementPoints[winnerIndex][1])
     return vm
+
+
+def normalize(measurements, m_means):
+    """normalized measurements according to the Lobanov method"""
+    values = [[], [], []]
+    grand_means = [0, 0, 0]
+    grand_stdvs = [0, 0, 0]
+    ## collect measurement values for each formant
+    for m in measurements:
+        if m.f1:
+            values[0].append(m.f1)
+        if m.f2:
+            values[1].append(m.f2)
+        if m.f3:
+            values[2].append(m.f3)
+    ## overall means and standard deviations for each formant   
+    for i in range(3):
+        grand_means[i], grand_stdvs[i] = mean_stdv(values[i])
+##        print "\nmean and standard deviations for F%s:  %i\t+-\t%i" % (i+1, grand_means[i], grand_stdvs[i])
+    ## normalize individual measurements
+    for m in measurements:
+        try:
+            m.norm_f1 = round(650 + 150 * (lobanov(m.f1, grand_means[0], grand_stdvs[0])), 0)
+        except TypeError:
+            m.norm_f1 = ''
+        try:
+            m.norm_f2 = round(1700 + 420 * (lobanov(m.f2, grand_means[1], grand_stdvs[1])), 0)  
+        except TypeError:
+            m.norm_f2 = ''
+##        try:
+##            m.norm_f3 = round(lobanov(m.f3, grand_means[2], grand_stdvs[2]), 0)
+##        except TypeError:
+##            m.norm_f3 = None
+        m.norm_f3 = ''  ## don't normalize F3 right now - we don't have any reasonable scaling factors
+    ## normalize the means and standard deviations for F1 and F2
+    for p in plotnik.PLOTNIKCODES:
+        ## F1 mean
+        try:
+            m_means[p].norm_means[0] = round(650 + 150 * (lobanov(m_means[p].means[0], grand_means[0], grand_stdvs[0])), 0)
+        except TypeError:
+##            print "No F1 normalized mean for vowel class %s:  value = %s, mean = %s, stdv = %s." % (p, m_means[p].means[0], grand_means[0], grand_stdvs[0])
+            m_means[p].norm_means[0] = ''
+        ## F1 standard deviation
+        try:
+            m_means[p].norm_stdvs[0] = round(150 * (m_means[p].stdvs[0] / grand_stdvs[0]), 0)           
+        except TypeError:
+##            print "No F1 normalized standard deviation for vowel class %s:  value = %s, stdv = %s." % (p, m_means[p].stdvs[0], grand_stdvs[0])
+            m_means[p].norm_stdvs[0] = ''
+        ## F2 mean
+        try:
+            m_means[p].norm_means[1] = round(1700 + 420 * (lobanov(m_means[p].means[1], grand_means[1], grand_stdvs[1])), 0)
+        except TypeError:
+##            print "No F2 normalized mean for vowel class %s:  value = %s, mean = %s, stdv = %s." % (p, m_means[p].means[1], grand_means[1], grand_stdvs[1])
+            m_means[p].norm_means[1] = ''
+        ## F2 standard deviation
+        try:
+            m_means[p].norm_stdvs[1] = round(420 * (m_means[p].stdvs[1] / grand_stdvs[1]), 0)           
+        except TypeError:
+##            print "No F2 normalized standard deviation for vowel class %s:  value = %s, stdv = %s." % (p, m_means[p].stdvs[1], grand_stdvs[1])
+            m_means[p].norm_stdvs[1] = ''
+                    
+##        print m_means[p]
+##        print "\n"
+    
+    return measurements, m_means
+    
+
+def lobanov(value, mean, stdv):
+    """converts a value into its corresponding z-score"""
+    if value and mean and stdv:
+        return (value - mean) / stdv
+    else:  ## not enough tokens for normalization, or no mean to normalize
+        return ''
 
 
 def modifyIntensityCutoff(beg_cutoff, end_cutoff, phone, intensities, times):
@@ -917,15 +1107,17 @@ def outputFormantSettings(measurements, speaker, outputFile):
     f.close()
     
 
-def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHeader):
+def outputMeasurements(outputFormat, measurements, m_means, speaker, outputFile, outputHeader):
     """writes measurements to file according to selected output format"""
+    
     ## outputFormat = "text"
-    if outputFormat in ['txt', 'text']:
-        fw = open(outputFile, 'w')
+    if outputFormat in ['txt', 'text', 'both']:
+        fw = open(os.path.splitext(outputFile)[0] + ".txt", 'w')  ## explicitly generate different extensions for "both" option
         ## print header, if applicable
         if outputHeader:
             ## speaker information
-            fw.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.city, speaker.state, speaker.year]))
+            #fw.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.city, speaker.state, speaker.year]))
+            fw.write(', '.join([speaker.name, speaker.age, speaker.sex, speaker.ethnicity, speaker.years_of_schooling, speaker.location, speaker.year]))
             fw.write('\n\n')            
             # header
             fw.write('\t'.join(['vowel', 'stress', 'word', 'F1', 'F2', 'F3', 'B1', 'B2', 'B3', 't', 'beg', 'end', 'dur', 'cd', 'fm', 'fp', 'fv', 'ps', 'fs', 'style', 'glide']))
@@ -936,6 +1128,7 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
                 fw.write('\t')
                 fw.write('\t'.join(['poles', 'bandwidths']))
             fw.write('\n')
+        ## individual measurements
         for vm in measurements:
             fw.write('\t'.join([vm.phone, str(vm.stress), vm.word, str(vm.f1), str(vm.f2)]))    ## vowel (ARPABET coding), stress, word, F1, F2
             fw.write('\t')
@@ -956,8 +1149,10 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
                 fw.write('\t'.join([','.join([str(p) for p in vm.poles]), ','.join([str(b) for b in vm.bandwidths])]))  ## candidate poles and bandwidths (at point of measurement)
             fw.write('\n')
         fw.close()
+        print "Vowel measurements output in .txt format to the file %s" % (os.path.splitext(outputFile)[0] + ".txt")
+        
     ## outputFormat = "plotnik"
-    elif outputFormat in ['plotnik', 'Plotnik', 'plt']:
+    if outputFormat in ['plotnik', 'Plotnik', 'plt', 'both']:
         plt = plotnik.PltFile()
         ## transfer speaker information
         plt.first_name = speaker.first_name
@@ -966,12 +1161,17 @@ def outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHe
         plt.sex = speaker.sex
         plt.city = speaker.city
         plt.state = speaker.state
-        plt.ts = speaker.year       ## use year of recording instead of Telsur number
+        plt.ethnicity = speaker.ethnicity
+        plt.years_of_schooling = speaker.years_of_schooling
+        plt.location = speaker.location
+        plt.year = speaker.year
         for vm in measurements:
             plt.measurements.append(vm)
         plt.N = len(plt.measurements)
-        plotnik.outputPlotnikFile(plt, outputFile)
-    else:
+        plt.means = m_means
+        plotnik.outputPlotnikFile(plt, os.path.splitext(outputFile)[0] + ".plt")  ## explicitly generate different extensions for "both" option
+        print "Vowel measurements output in .plt format to the file %s" % (os.path.splitext(outputFile)[0] + ".plt")
+    if outputFormat not in ['plotnik', 'Plotnik', 'plt', 'txt', 'text','both']:
         print "ERROR: Unsupported output format %s" % outputFormat
         print __doc__ 
         sys.exit(0)
@@ -993,9 +1193,9 @@ def parseConfig(options, f):
         value = line.split('=')[1].strip()
         checkConfigValue(f, option, value)
         ## set option value
-        if value == "T":
+        if value in ["T", "True"]:
             options[option] = True
-        elif value == "F":
+        elif value in ["F", "False"]:
             options[option] = False
         else:
             options[option] = value
@@ -1023,74 +1223,47 @@ def predictF1F2(phone, selectedpoles, selectedbandwidths, means, covs):
     vowel = phone.cd        ## Plotnik vowel code
     values = []             ## this list keeps track of all pairs of poles/bandwidths "tested"
     distances = []          ## this list keeps track of the corresponding value of the Mahalanobis distance
-    ## for all values of nFormants:
-    if formantPredictionMethod == "reremeasurement":
-        for poles, bandwidths in zip(selectedpoles, selectedbandwidths):
-            ## check that there are at least two formants in the selected frame
-            if len(poles) >= 2:
-                #nPoles = len(poles)     ## number of poles
-                ## check all possible combinations of F1, F2, F3: 
-                #for i in range(min([nPoles - 1, 2])):
-                #    for j in range(i+1, min([nPoles, 3])):
-                        i = 0
-                        j = 1
-                        x = robjects.FloatVector([poles[i], poles[j], math.log(bandwidths[i]), math.log(bandwidths[j])])
-                        
-                        if len(poles) > 2:
-                            values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
-                        else:
-                            values.append([x[0], x[1], x[2], x[3], '', ''])
-
-            else:   
+    ## for all values of nFormants:       
+    for poles, bandwidths in zip(selectedpoles, selectedbandwidths):
+        ## check that there are at least two formants in the selected frame
+        if len(poles) >= 2:
+            #nPoles = len(poles)     ## number of poles
+            ## check all possible combinations of F1, F2, F3: 
+            #for i in range(min([nPoles - 1, 2])):
+            #    for j in range(i+1, min([nPoles, 3])):
+                    i = 0
+                    j = 1
+                    ## vector with current pole combination and associated bandwidths
+                    x = robjects.FloatVector([poles[i], poles[j], math.log(bandwidths[i]), math.log(bandwidths[j])])
+                    ## calculate Mahalanobis distance between x and ANAE mean
+                    dist = robjects.r['mahalanobis'](x, means[vowel], covs[vowel])[0]
+                    ## append poles and bandwidths to list of values
+                    ## (if F3 and bandwidth measurements exist, add to list of appended values)
+                    if len(poles) > 2:
+                        values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
+                    else:
+                        values.append([x[0], x[1], x[2], x[3], '', ''])
+                    ## append corresponding Mahalanobis distance to list of distances
+                    distances.append(dist)
+        ## we need to append something to the distances and values lists so that the winnerIndex still corresponds with nFormants!
+        ## (this is for the case that the selected formant frame only contains F1 - empty string will not be selected as minimum distance)
+        else:
+            ## if there are gaps in the formant tracks and the vowel duration is short, the whole formant track may disappear during smoothing
+            if len(poles) == 1 and len(bandwidths) == 1:
                 values.append([poles[0], '', bandwidths[0], '', '', ''])
-
-        winnerIndex = 2
-        f1 = values[winnerIndex][0]
-        f2 = values[winnerIndex][1]
-        f3 = values[winnerIndex][4]
-        b1 = math.exp(values[winnerIndex][2])
-        b2 = math.exp(values[winnerIndex][3])
-        b3 = values[winnerIndex][5]
-        ## return tuple of measurements
-        
-    else:
-    
-        for poles, bandwidths in zip(selectedpoles, selectedbandwidths):
-            ## check that there are at least two formants in the selected frame
-            if len(poles) >= 2:
-                #nPoles = len(poles)     ## number of poles
-                ## check all possible combinations of F1, F2, F3: 
-                #for i in range(min([nPoles - 1, 2])):
-                #    for j in range(i+1, min([nPoles, 3])):
-                        i = 0
-                        j = 1
-                        ## vector with current pole combination and associated bandwidths
-                        x = robjects.FloatVector([poles[i], poles[j], math.log(bandwidths[i]), math.log(bandwidths[j])])
-                        ## calculate Mahalanobis distance between x and ANAE mean
-                        dist = robjects.r['mahalanobis'](x, means[vowel], covs[vowel])[0]
-                        ## append poles and bandwidths to list of values
-                        ## (if F3 and bandwidth measurements exist, add to list of appended values)
-                        if len(poles) > 2:
-                            values.append([x[0], x[1], x[2], x[3], poles[2], bandwidths[2]])
-                        else:
-                            values.append([x[0], x[1], x[2], x[3], '', ''])
-                        ## append corresponding Mahalanobis distance to list of distances
-                        distances.append(dist)
-            ## we need to append something to the distances and values lists so that the winnerIndex still corresponds with nFormants!
-            ## (this is for the case that the selected formant frame only contains F1 - empty string will not be selected as minimum distance)
-            else:   
-                values.append([poles[0], '', bandwidths[0], '', '', ''])
-                distances.append('')
-        ## get index for minimum Mahalanobis distance
-        winnerIndex = distances.index(min(distances))
-        ## get corresponding F1, F2 and bandwidths values
-        f1 = values[winnerIndex][0]
-        f2 = values[winnerIndex][1]
-        f3 = values[winnerIndex][4]
-        b1 = math.exp(values[winnerIndex][2])
-        b2 = math.exp(values[winnerIndex][3])
-        b3 = values[winnerIndex][5]
-        ## return tuple of measurements
+            else:
+                values.append(['', '', '', '', '', ''])
+            distances.append('')
+    ## get index for minimum Mahalanobis distance
+    winnerIndex = distances.index(min(distances))
+    ## get corresponding F1, F2 and bandwidths values
+    f1 = values[winnerIndex][0]
+    f2 = values[winnerIndex][1]
+    f3 = values[winnerIndex][4]
+    b1 = math.exp(values[winnerIndex][2])
+    b2 = math.exp(values[winnerIndex][3])
+    b3 = values[winnerIndex][5]
+    ## return tuple of measurements
     return (f1, f2, f3, b1, b2, b3, winnerIndex)
 
 
@@ -1104,14 +1277,43 @@ def processInput(wavInput, tgInput, output):
     return (wavFiles, tgFiles, outputFiles)
 
 
-def programExists(program):
-    """checks whether a given command line program exists"""
-    p = os.popen('which ' + program)
-    if p.readlines() == []:
-        return False
-    else:
-        return True
+def programExists(program, path=''):
+    """checks whether a given command line program exists (path can be specified optionally)"""
+    if not path:
+        p = os.popen('which ' + program)
+        if p.readlines() == []:
+            return False
+        else:
+            return True
+    else:  ## path is specified
+        return os.path.isfile(os.path.join(path, program))
 
+
+def readSpeakerFile(speakerFile):
+    """reads speaker background information from a speaker file"""
+    speaker = Speaker()
+    for line in open(speakerFile, 'rU').readlines():
+        ## check format of line
+        checkConfigLine(speakerFile, line)
+        ## get speaker attributes
+        attribute, value = [f.strip() for f in line.split('=')]
+        ## make tiernum an integer
+        if attribute == 'speakernum':
+            ## speakernum: number of speaker in the TextGrid (starting at 1:  first speaker, second speaker etc.)
+            ## tiernum:    points to the phone tier of the speaker (tier numbering starts with 0)
+            ## (e.g. speaker is third speaker in the TextGrid -> tiernum = 4)
+            ## - > needs to be converted
+            value = (int(value) - 1) * 2
+            attribute = "tiernum"  ## Speaker object has only attribute tiernum!
+        ## check that attribute for speaker exists
+        if hasattr(speaker, attribute):
+            setattr(speaker, attribute, value)
+            #print "Added attribute %s with value %s to speaker object." % (attribute, value)
+        else:
+            print "WARNING!  Speaker object has not attribute %s (value %s)!" % (attribute, value)
+        ## set full name of speaker
+        speaker.name = speaker.first_name + ' ' + speaker.last_name
+    return speaker
 
 def setDefaultOptions():
     """specifies the default options for the program"""
@@ -1206,7 +1408,7 @@ def whichSpeaker(speakers):
         return speaker
 
 
-def writeLog(filename):
+def writeLog(filename, wavFile, maxTime, meansFile, covsFile, stopWords):
     """writes a log file"""
     f = open(filename, 'w')
     f.write(time.asctime())
@@ -1265,36 +1467,45 @@ def writeLog(filename):
         f.write(logtimes[i][2])
         f.write("\n")
     f.close()
-    print "Written log file %s." % filename
+    print "\nWritten log file %s.\n" % filename
 
-
-
+        
 #############################################################################
-##                        MAIN PROGRAM STARTS HERE                         ##
+## This used to be the main program; now it's wrapped in a function...     ##
 #############################################################################
 
-if __name__ == '__main__':
-    try:
-        ## parse program arguments and options
-        opts, args = getopt.getopt(sys.argv[1:], '', ["means=", "covariances=", "phoneset=", "outputFormat=", "config=", "stopWords="])
-        wavInput, tgInput, output = args
-    except:
-        (type, value, traceback) = sys.exc_info()
-        print value
-        print __doc__
-        sys.exit(0)
-
+def extractFormants(wavInput, tgInput, output, opts, SPATH='', PPATH=''):
+    """run extractFormants on a sound file and TextGrid file, with the options specified in opts"""
+    ## NOTE:  opts is a list of option-value pairs, e.g. [("--config", "config.txt"), ("--speaker", "speaker.txt")]
+    ##        S(OX)PATH and P(RAAT)PATH do not need to be specified when run as a standalone program (they can be verified via the shell),
+    ##        but in some cases (running EF as a module from a CGI script as user "www") this information is needed
+    
     ## initialize counters & timing
+    global logtimes
     logtimes = []
     markTime("start")
+    global count_vowels
     count_vowels = 0
+    global count_analyzed
     count_analyzed = 0
+    global count_uncertain
     count_uncertain = 0
+    global count_overlaps
     count_overlaps = 0
+    global count_truncated
     count_truncated = 0
+    global count_stopwords
     count_stopwords = 0
+    global count_unstressed
     count_unstressed = 0
+    global count_too_short
     count_too_short = 0
+
+    ## if paths are specified, make them available globally
+    global SOXPATH
+    SOXPATH = SPATH
+    global PRAATPATH
+    PRAATPATH = PPATH
 
     # by default, assume that these files are located in the current directory
     meansFile = 'means.txt'
@@ -1302,6 +1513,7 @@ if __name__ == '__main__':
     phonesetFile = 'cmu_phoneset.txt'
     configFile = ''
     stopWordsFile = ''
+    speakerFile = ''
 
     ## process program options
     for o, a in opts:
@@ -1312,11 +1524,14 @@ if __name__ == '__main__':
         elif o == "--phoneset":
             phonesetFile = a
         elif o == "--outputFormat":
+            global outputFormat
             outputFormat = a
         elif o == "--config":
             configFile = a
         elif o == "--stopWords":
             stopWordsFile = a
+        elif o == "--speaker":
+            speakerFile = a
         else:
             print "ERROR:  unrecognized option %s" % o
             print __doc__
@@ -1335,6 +1550,8 @@ if __name__ == '__main__':
         stopWords = options['stopWords']
 
     # assign the options to individual variables and to type conversion if necessary
+    global case, outputHeader, formantPredictionMethod, measurementMethod, measurementPointMethod, speechSoftware, nFormants, maxFormant
+    global nSmoothing, removeStopWords, measureUnstressed, minVowelDuration, windowSize, preEmphasis, multipleFiles, remeasurement, candidates
     case = options['case']
     outputFormat = options['outputFormat']
     outputHeader = options['outputHeader']
@@ -1352,21 +1569,27 @@ if __name__ == '__main__':
     multipleFiles = options['multipleFiles']
     remeasurement = options['remeasurement']
     candidates = options['candidates']
+    print "Processed options."
 
     ## read CMU phoneset ("cmu_phoneset.txt")
     phoneset = cmu.read_phoneset(phonesetFile)
+    print "Read CMU phone set."
 
     # make sure the specified speech analysis program is in our path
     speechSoftware = checkSpeechSoftware(speechSoftware)
+    print "Speech software to be used is %s." % speechSoftware
 
     # determine what program we'll use to extract portions of the audio file
     soundEditor = getSoundEditor()
+    print "Sound editor to be used is %s." % soundEditor
 
     # if we're using the Mahalanobis distance metric for vowel formant prediction,
     # we need to load files with the mean and covariance values
-    if formantPredictionMethod == 'mahalanobis' or formantPredictionMethod == 'reremeasurement':
+    if formantPredictionMethod == 'mahalanobis':
+        global means, covs
         means = loadMeans(meansFile)    ## "means.txt"
         covs = loadCovs(covsFile)       ## "covs.txt"
+        print "Read means and covs files for the Mahalanobis method."
 
     # put the list of stop words in upper or lower case to match the word transcriptions
     newStopWords = []
@@ -1396,13 +1619,18 @@ if __name__ == '__main__':
         # load the information from the TextGrid file with the word and phone alignments
         tg = praat.TextGrid()
         tg.read(tgFile)
-        speakers = checkTiers(tg)                           ## -> returns list of speakers
-        ## prompt user to choose speaker to be analyzed, and for background information on the speaker
-        speaker = whichSpeaker(speakers)                    ## -> returns Speaker object
+        if speakerFile:
+            speaker = readSpeakerFile(speakerFile)
+            print "Read speaker background information from .speaker file."
+        else:
+            speakers = checkTiers(tg)                           ## -> returns list of speakers
+            ## prompt user to choose speaker to be analyzed, and for background information on the speaker
+            speaker = whichSpeaker(speakers)                    ## -> returns Speaker object
         markTime("prelim1")
         ## extract list of words and their corresponding phones (with all coding) -> only for chosen speaker
-        words = getWordsAndPhones(tg, phoneset, speaker)    ## (all initial vowels are counted here)
-        maxTime = tg.xmax()                                 ## duration of TextGrid/sound file
+        words = getWordsAndPhones(tg, phoneset, speaker, wavFile)       ## (all initial vowels are counted here)
+        global maxTime
+        maxTime = tg.xmax()                                             ## duration of TextGrid/sound file
         measurements = []
 
         markTime("prelim2")
@@ -1474,22 +1702,41 @@ if __name__ == '__main__':
                 vm = getVowelMeasurement(vowelFileStem, p, w, speechSoftware, formantPredictionMethod, measurementPointMethod, nFormants, maxFormant, windowSize, preEmphasis, padBeg, padEnd, speaker)
                 measurements.append(vm)
                 count_analyzed += 1
-
+ 
         if remeasurement and formantPredictionMethod == 'mahalanobis':
             measurements = remeasure.remeasure(measurements)
-
-        if remeasurement and formantPredictionMethod == 'reremeasurement':
-            for i in range(6):
-                measurements = remeasure.remeasure(measurements)
-                outputMeasurements(outputFormat, measurements, speaker, outputFile+repr(i), outputHeader)
 
         # don't output anything if we didn't take any measurements
         # (this prevents the creation of empty output files)
         if len(measurements) > 0:
-            outputMeasurements(outputFormat, measurements, speaker, outputFile, outputHeader)
-            print "\nVowel measurements output in %s format to the file %s" % (outputFormat, outputFile)
+            ## calculate measurement means
+            m_means = calculateMeans(measurements)
+            ## normalize measurements
+            measurements, m_means = normalize(measurements, m_means)
+            print ''
+            outputMeasurements(outputFormat, measurements, m_means, speaker, outputFile, outputHeader)
 
         markTime("end")  
 
         ## write log file
-        writeLog(os.path.splitext(outputFile)[0] + ".formantlog")       
+        writeLog(os.path.splitext(outputFile)[0] + ".formantlog", wavFile, maxTime, meansFile, covsFile, stopWords)       
+
+
+
+#############################################################################
+##                        MAIN PROGRAM STARTS HERE                         ##
+#############################################################################
+
+if __name__ == '__main__':
+    try:
+        ## parse program arguments and options
+        opts, args = getopt.getopt(sys.argv[1:], '', ["means=", "covariances=", "phoneset=", "outputFormat=", "config=", "stopWords=", "speaker="])
+        wavInput, tgInput, output = args
+    except:
+        (type, value, traceback) = sys.exc_info()
+        print value
+        print __doc__
+        sys.exit(0)
+
+    extractFormants(wavInput, tgInput, output, opts)
+    

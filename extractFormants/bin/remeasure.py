@@ -67,8 +67,8 @@ def loadfile(file):
         vm.t = line[9]
         vm.beg = line[10]
         vm.end = line[11]       
-        vm.poles = [[float(y) for y in x.rstrip(']').lstrip('[').split(',')] for x in line[22].split('],[')]
-        vm.bandwidths = [[float(y) for y in x.rstrip(']').lstrip('[').split(',')] for x in line[23].split('],[')]
+        vm.poles = [[float(y) for y in x.rstrip(']').lstrip('[').split(',')] for x in line[21].split('],[')]
+        vm.bandwidths = [[float(y) for y in x.rstrip(']').lstrip('[').split(',')] for x in line[22].split('],[')]
         measurements.append(vm) 
     #sys.stderr.write("File read\n")
     return measurements
@@ -173,44 +173,37 @@ def repredictF1F2(measurements, vowelMeans, vowelCovs, vowels):
     remeasurements = []
     for vm in measurements:
 
-
         valuesList = []
         distanceList = []
         nFormantsList = []
         vowel = vm.cd
 
-        
         for i in range(len(vm.poles)):
-
             if len(vm.poles[i]) >= 2:
                 F1 = vm.poles[i][0]
                 F2 = vm.poles[i][1]
-                if len(vm.poles[i]) >= 3:
+                if len(vm.poles[i]) >= 3 and vm.poles[i][2]:  ## could be "None"
                     F3 = vm.poles[i][2]
                 else:
                     F3 = "NA"
                 B1 = math.log(vm.bandwidths[i][0])
                 B2 = math.log(vm.bandwidths[i][1])
-                if len(vm.bandwidths[i]) >= 3:
+                if len(vm.bandwidths[i]) >= 3 and vm.poles[i][2]:
                     B3 = vm.bandwidths[i][2]
                 else:
                     B3 = "NA"
                 
                 ##nFormants = len(vm.poles[i])
                 lDur = math.log(vm.dur)
-#                values = [F1, F2, F3, B1, B2, B3, lDur]
                 values = [F1, F2, B1, B2, lDur]
                 outvalues = [F1, F2, F3, B1, B2, B3, lDur]
     
                 x = robjects.FloatVector(values)
-               
 
                 ##If there is only one member of a vowel category,
                 ##the covariance matrix will be filled with NAs
                 #sys.stderr.write(vowel+"\n")
-
                 if vowel in vowelCovs:
-
                     if vowelCovs[vowel][0] is rinterface.NA_Real:
                         valuesList.append([float(vm.f1), float(vm.f2), vm.f3, math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3, lDur])
                         distanceList.append(0)
@@ -219,17 +212,17 @@ def repredictF1F2(measurements, vowelMeans, vowelCovs, vowels):
                         valuesList.append([float(vm.f1), float(vm.f2), vm.f3, math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3, lDur])
                         distanceList.append(0)
                         nFormantsList.append(i + 3)
-                    elif robjects.r['det'](vowelCovs[vowel])[0] == 0:
+                    elif robjects.r['det'](vowelCovs[vowel])[0] == 0:  ## determinant of the covariance matrix is zero
                         valuesList.append([float(vm.f1), float(vm.f2), vm.f3, math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3, lDur])
                         distanceList.append(0)
-                        nFormantsList.append(i + 3)                        
-                    else:  
+                        nFormantsList.append(i + 3)
+                    else:
                         dist = robjects.r['mahalanobis' ](x, vowelMeans[vowel], vowelCovs[vowel])[0]   
                         valuesList.append(outvalues)
                         distanceList.append(dist)
                         nFormantsList.append(i + 3)
                 else:
-                    valuesList.append([float(vm.f1), float(vm.f2), float(vm.f3), math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3,lDur])
+                    valuesList.append([float(vm.f1), float(vm.f2), vm.f3, math.log(float(vm.b1)), math.log(float(vm.b2)), vm.b3, lDur])
                     distanceList.append(0)
                     nFormantsList.append(i + 3)
 
@@ -240,13 +233,13 @@ def repredictF1F2(measurements, vowelMeans, vowelCovs, vowels):
         ## change formants and bandwidths to new values
         vm.f1 = round(bestValues[0], 1)
         vm.f2 = round(bestValues[1], 1)
-        if bestValues[2] != "NA":
+        if bestValues[2] != "NA" and bestValues[2] != None:
             vm.f3 = round(bestValues[2], 1)
         else:
             vm.f3 = ''
         vm.b1 = round(math.exp(bestValues[3]), 1)
         vm.b2 = round(math.exp(bestValues[4]), 1)
-        if bestValues[5] != "NA":
+        if bestValues[5] != "NA" and bestValues[5] != None:
             try:
                 vm.b3 = round(bestValues[5], 1)
             except OverflowError:
@@ -286,28 +279,12 @@ def output(remeasurements):
     fw.close()
 
 
-def remeasure(measurements):
+def remeasure(measurements):    
     vowels = createVowelDictionary(measurements)
     vowelMeans, vowelCovs = calculateVowelMeans(vowels)
     invowels = excludeOutliers(vowels, vowelMeans, vowelCovs)
     vowelMeans, vowelCovs = calculateVowelMeans(invowels)
     remeasurements = repredictF1F2(measurements, vowelMeans, vowelCovs, vowels)
-    return remeasurements
-
-
-def choosePoles(measurements, pole):
-    index = pole-3
-    remeasurements = []
-    for vm in measurements:
-        vm.f1 = vm.poles[index][0]
-        vm.f2 = vm.poles[index][1]
-        if len(vm.poles) < 3:
-            vm.f3 = vm.poles[index][2]
-        vm.b1 = vm.bandwidths[index][0]
-        vm.b2 = vm.bandwidths[index][1]
-        if len(vm.poles) < 3:
-            vm.b3 = vm.bandwidths[index][2]
-        remeasurements.append(vm)
     return remeasurements
 
 ## Main Program Starts Here
@@ -317,8 +294,6 @@ if __name__ == '__main__':
     file = sys.argv[1]
     vowelindex = 13
     measurements = loadfile(file)
-    measurements = choosePoles(measurements, 4)
     remeasurements = remeasure(measurements)
-
     output(remeasurements)
 
