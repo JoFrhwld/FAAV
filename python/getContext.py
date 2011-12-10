@@ -1,5 +1,6 @@
 import praat
 import bisect
+import string
 
 
 def readPlt(path):
@@ -100,27 +101,55 @@ def getWordContext(word, phone):
     return(context)
 
 
+def getWordTranscription(tg, word_Tier, phone_Tier, word_Index):
+    word_Start = tg[word_Tier][word_Index].xmin()
+    word_End = tg[word_Tier][word_Index].xmax()
 
+    first_Phone = getIntervalAtTime(tg, phone_Tier, word_Start + 0.001)
+    last_Phone = getIntervalAtTime(tg, phone_Tier, word_End - 0.001)
+
+    word = []
+    for i in range(first_Phone, last_Phone + 1):
+        word.append(tg[phone_Tier][i].mark())
+
+    word_str = string.join(word, sep = " ")
+    return(word_str)
+
+
+def writeContextInfo(path, spinfo, line, context, pre_Seg, post_Seg, post2_Seg, word_Trans, pos_word_Trans):
+    savef = open(path, "a")
+
+    pltcoding = line[3]
+    pltcoding = pltcoding.split(".")
+    pltcoding[-1] = string.join([x for x in pltcoding[-1]], sep = "\t")
+    plcoding = string.join(pltcoding, "\t")
+
+    
+
+tgfile = "/Users/joseffruehwald/Documents/Classes/FAAV/python/PH73-0-7-EDonnelly.TextGrid"
+pltfile = "/Users/joseffruehwald/Documents/Classes/FAAV/python/PH73-0-7-EDonnelly-rx.plt"
 tg = praat.TextGrid()
-tg.read("/Users/joseffruehwald/Documents/Classes/FAAV/python/PH73-0-7-EDonnelly.TextGrid")
-lines, spinfo = readPlt("/Users/joseffruehwald/Documents/Classes/FAAV/python/PH73-0-7-EDonnelly-rx.plt")
+tg.read(tgfile)
+lines, spinfo = readPlt(pltfile)
+
+
+path_elements = tgfile.split("/")
+save_file = path_elements[-1].replace("TextGrid", "txt")
+save_path = "/Users/joseffruehwald/Documents/Classes/FAAV/python"
+
+
 
 phone_Tier, word_Tier = getPhoneAndWordTier(tg, spinfo)
 
-sub_v_Time, sub_v_Index = subDivideTime(tg, 0, 10)
-sub_w_Time, sub_w_Index = subDivideTime(tg, 1, 10)
-
+last_Interval = 0
 
 
 for line in lines:
     time = float(line[-1][-1])
     word = line[-1][0]
 
-    jawn = bisect.bisect(sub_v_Time, time)
-    lo = sub_v_Index[jawn-1]
-    hi = sub_v_Index[jawn]
     
-    v_Interval_index = getVowelInterval(tg, phone_Tier, time, lo = lo, hi = hi)
+    v_Interval_index = getVowelInterval(tg, phone_Tier, time, lo = last_Interval)
     pre_Interval_index = v_Interval_index - 1
     post_Interval_index = v_Interval_index + 1
     post2_Interval_index = v_Interval_index + 2
@@ -129,9 +158,14 @@ for line in lines:
     post_Seg = tg[phone_Tier][post_Interval_index].mark()
     post2_Seg = tg[phone_Tier][post2_Interval_index].mark()
 
+
+
     phone_Interval = tg[phone_Tier][v_Interval_index]
-    word_Interval = tg[word_Tier][getIntervalAtTime(tg, word_Tier, phone_Interval.xmin())]
+
+    w_Interval_index = getIntervalAtTime(tg, word_Tier, phone_Interval.xmin())
+    word_Interval = tg[word_Tier][w_Interval_index]
 
     context = getWordContext(word_Interval, phone_Interval)
 
-    
+    word_Trans = getWordTranscription(tg, word_Tier, phone_Tier, w_Interval_index)
+    post_word_Trans = getWordTranscription(tg, word_Tier, phone_Tier, w_Interval_index+1)
