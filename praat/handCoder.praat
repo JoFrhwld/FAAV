@@ -13,6 +13,7 @@
 ##    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 ##    Copyright 2011, Josef Fruehwald
+##    Minor Additions by Jordan Kodner, 2012
 ###########################################################
 
 ######################################################################################################	
@@ -57,7 +58,7 @@ form Search Settings
 	word file speaker
 	word outfile outfile.txt
 	comment Segments to Search For
-	sentence Search_Segments T D
+	sentence Search_Segments T, D, ER0 AW1 N, B AH1 N, D OW1 N, K UH1 D AH0 N, D IH1 D AH0 N, D AH1 Z AH0 N, D OW1 N, HH AE1 D AH0 N, HH AE1 V AH0 N, IH1 Z AH0 N, L AE1 S, M OW1 S, N EH1 K S, P L EY1 G R AW2 N, R AH1 N AH0 R AW2 N, S EH1 K AH0 N, TH AW1 Z AH0 N             
 	comment Word context
 	optionmenu Context: 1
 		option End of word
@@ -105,16 +106,40 @@ elsif context == 5
 elsif context == 6
 	start_Of_Word = 1
 	end_Of_Word = 1
-elsif context == 7
+elseif context == 7
 	end_Of_Word = 1
 	start_Of_Word = 1
 	word_Internal = 1
 endif
-	
+
+#
+#creates array of search strings named search_array$
+#length of array is num_search_segs
+#creates array of lengths of search strings search_lens
+#arrays indexed from 0
+search_Segments$ = " " + replace_regex$ (search_Segments$, ",", " , ", 1000) + " , "
+search_Segments$ = replace_regex$ (search_Segments$, " +", " ", 1000)
+#search_Segments$ = replace_regex$ (search_Segments$, "\d", "", 1000)
+
+x = index(search_Segments$, ",")
+i = 0
+while x > 0 && i < 15
+	search_array'i'$ = left$ (search_Segments$, index(search_Segments$, ",")-1)
+	len = length(search_array'i'$)
+	if len == 3
+		search_lens'i' = 1
+	else
+		pr$ = replace$ (search_array'i'$, " ", "", 0)
+		search_lens'i' = length(search_array'i'$) - length(pr$) - 1
+	endif
+	search_Segments$ = right$ (search_Segments$, length(search_Segments$) - index(search_Segments$, ","))
+	i = i + 1
+	x = index(search_Segments$, ",")
+endwhile
+num_search_segs = i-1
+
 
 #log_file = file$ + ".log"
-
-search_Segments$ = " "+search_Segments$+" "
 
 vowel$ = " AA AE AH AO AW AX AY EH EY IH IY OW OY UH UW "
 consonant$ = " B CH DH DX AXR EL EM EN ER F G HH HV JH K L M N NX NG P R S SH T TH V W Y Z ZH "
@@ -153,6 +178,8 @@ endif
 
 stop_Words$ = " "+stop_Words$+" "
 
+
+
 select TextGrid 'file$'
 plus LongSound 'file$'
 Edit
@@ -175,19 +202,52 @@ endif
 			if index(stop_Words$, " "+word$+" ") == 0
 				ph_First_Int = Get interval at time... 1 word_Start + 0.005
 				ph_Last_Int = Get interval at time... 1 word_End - 0.005
+
+				#
+				# gets Arpabet transcription of word arpa$
+				arpa$ = ""
+				for ph_Int from ph_First_Int to ph_Last_Int
+					seg$ = Get label of interval... 1 ph_Int
+					arpa$ = arpa$ + seg$ + " "
+				endfor
+				#arpa$ = replace_regex$ (arpa$, "\d", "", 0)
+
 				for ph_Int from ph_First_Int to ph_Last_Int
 
 					seg$ = Get label of interval... 1 ph_Int
 
-					if index(search_Segments$, " "+seg$+" ") > 0
-						condition_met = 0
+					#
+					#checks whether this word contains search terms
+					#condition_met: ~(whether a search segment was found)
+					#found_len: length of search segment matched
+					#found_index: index of search segment matched in search_array$
+					condition_met = 1
+					found_len = 0
+					found_index = 0
+					arpa$ = " " + arpa$
+
+					for i from 0 to num_search_segs
+						if index_regex (arpa$, search_array'i'$) == 1
+							condition_met = 0
+							found_len = search_lens'i'
+							found_index = i
+						endif
+					endfor
+					arpa$ = right$ (arpa$, length(arpa$) -1)
+					arpa$ = right$ (arpa$, length(arpa$) - index(arpa$, " "))
+
+					if condition_met = 0
 				
 						seg_Start = Get start point... 1 ph_Int
 						seg_End = Get end point... 1 ph_Int
 						seg_Dur = seg_End-seg_Start
 						seg_Mid = seg_Start + (seg_Dur/2)
 
-						pre_Seg$ = Get label of interval... 1 ph_Int-1
+						if ph_Int > 1
+							pre_Seg$ = Get label of interval... 1 ph_Int-1
+						else
+							pre_Seg$ = "none"
+						endif
 						pre_Seg$ = replace$(pre_Seg$, "0", "", 0)
 						pre_Seg$ = replace$(pre_Seg$, "1", "", 0)
 						pre_Seg$ = replace$(pre_Seg$, "2", "", 0)
@@ -199,7 +259,7 @@ endif
 
 						location$ = ""
 
-						if end_Of_Word == 1 and ph_Int  == ph_Last_Int
+						if end_Of_Word == 1 and ph_Int + found_len -1 == ph_Last_Int
 							condition_met = 1
 							location$ = "End"
 						endif
@@ -210,29 +270,29 @@ endif
 						endif
 
 						if word_Internal == 1 and ph_Int <> ph_First_Int and ph_Int <> ph_Last_Int
-								condition_met = 1
-								location$ = "Internal"
+							condition_met = 1
+							location$ = "Internal"
 						endif
 
-						if length(replace$ (search_Pre_Context$, " ", "", 0)) > 0
+						if length(replace$ (search_Pre_Context$, " ", "", 0)) > 0 and found_len == 1
 							if index(search_Pre_Context$, " "+pre_Seg$+" ") == 0
 				 				condition_met = 0
 							endif
 						endif
 
-						if length(replace$ (search_Post_Context$, " ", "", 0)) > 0
+						if length(replace$ (search_Post_Context$, " ", "", 0)) > 0 and found_len == 1
 							if index(search_Post_Context$, " "+post_Seg$+" ") == 0
 								condition_met = 0
 							endif
 						endif
 
-						if length(replace$ (stop_Pre_Context$, " ", "", 0)) > 0
+						if length(replace$ (stop_Pre_Context$, " ", "", 0)) > 0 and found_len == 1
 							if index(stop_Pre_Context$, " "+pre_Seg$+" ") > 0
 								condition_met = 0
 							endif
 						endif
 
-						if length(replace$ (stop_Post_Context$, " ", "", 0)) > 0
+						if length(replace$ (stop_Post_Context$, " ", "", 0)) > 0 and found_len == 1
 							if index(stop_Post_Context$, " "+post_Seg$+" ") > 0
 								condition_met = 0
 							endif
@@ -242,7 +302,7 @@ endif
 							window_Start = Get start point... 2 max(1,int - window_Size)
 							window_End = Get end point... 2 min(int + window_Size, word_Intervals)
 							window_Dur = window_End - window_Start
-				
+					
 
 							firstPhInt = Get interval at time... 1 window_Start+0.005
 							lastPhInt = Get interval at time... 1 window_End-0.005
