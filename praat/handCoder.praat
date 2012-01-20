@@ -13,7 +13,7 @@
 ##    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 ##    Copyright 2011, Josef Fruehwald
-##    Minor Additions by Jordan Kodner, 2012
+##	Additions by Jordan Kodner, 2012
 ###########################################################
 
 ######################################################################################################	
@@ -252,7 +252,7 @@ endif
 						pre_Seg$ = replace$(pre_Seg$, "1", "", 0)
 						pre_Seg$ = replace$(pre_Seg$, "2", "", 0)
 
-						post_Seg$ = Get label of interval... 1 ph_Int+1
+						post_Seg$ = Get label of interval... 1 ph_Int+found_len
 						post_Seg$ = replace$(post_Seg$, "0", "", 0)
 						post_Seg$ = replace$(post_Seg$, "1", "", 0)
 						post_Seg$ = replace$(post_Seg$, "2", "", 0)
@@ -292,7 +292,7 @@ endif
 							endif
 						endif
 
-						if length(replace$ (stop_Post_Context$, " ", "", 0)) > 0 and found_len == 1
+						if length(replace$ (stop_Post_Context$, " ", "", 0)) > 0
 							if index(stop_Post_Context$, " "+post_Seg$+" ") > 0
 								condition_met = 0
 							endif
@@ -326,8 +326,8 @@ endif
 							pre_Seg_End = Get end point... 1 ph_Int-1
 							pre_Seg_Dur = pre_Seg_End - pre_Seg_Start
 
-							post_Seg_Start = Get start point... 1 ph_Int+1
-							post_Seg_End = Get end point... 1 ph_Int+1
+							post_Seg_Start = Get start point... 1 ph_Int+found_len
+							post_Seg_End = Get end point... 1 ph_Int+found_len
 							post_Seg_Dur = post_Seg_End - post_Seg_Start
 
 							editor TextGrid 'file$'
