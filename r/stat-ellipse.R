@@ -1,4 +1,4 @@
-StatEllipse <- proto(Stat,
+StatEllipse <- proto(ggplot2:::Stat,
 	{
 		required_aes <- c("x", "y")
 		default_geom <- function(.) GeomPath
