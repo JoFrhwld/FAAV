@@ -1,4 +1,6 @@
-StatEllipse <- proto(Stat,
+require(proto)
+
+StatEllipse <- proto(ggplot2:::Stat,
 	{
 		required_aes <- c("x", "y")
 		default_geom <- function(.) GeomPath
@@ -30,4 +32,6 @@ StatEllipse <- proto(Stat,
 	}
 )
 
-stat_ellipse <- StatEllipse$build_accessor()
+stat_ellipse <- function(mapping=NULL, data=NULL, geom="path", position="identity", ...) {
+  StatEllipse$new(mapping=mapping, data=data, geom=geom, position=position, ...)
+}
