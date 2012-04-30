@@ -30,4 +30,6 @@ StatEllipse <- proto(ggplot2:::Stat,
 	}
 )
 
-stat_ellipse <- StatEllipse$new()
+stat_ellipse <- function(mapping=NULL, data=NULL, geom="path", position="identity", ...) {
+  StatEllipse$new(mapping=mapping, data=data, geom=geom, position=position, ...)
+}
