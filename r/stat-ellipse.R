@@ -30,4 +30,4 @@ StatEllipse <- proto(ggplot2:::Stat,
 	}
 )
 
-stat_ellipse <- StatEllipse$build_accessor()
+stat_ellipse <- StatEllipse$new()
