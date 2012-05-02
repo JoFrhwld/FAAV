@@ -17,7 +17,7 @@ read.plotnik <- function(file){
   to.compile <- data[3:(i-1)]
   out <- ldply(to.compile, function(x) unlist(strsplit(x, split = ",")))
   colnames(out) <- c(c("F1","F2","F3","VCoding","Dur_Stress","Info"), paste("V",7:ncol(out), sep = ""))
-  out$Word <- reshape::colsplit(out$Info, split = " ", names = "Word")$Word
+  out$Word <- suppressWarnings(reshape::colsplit(out$Info, split = " ", names = "Word")$Word)
   if(length(grep("\\.", out$Dur_Stress)) > 0){
 	  out <- cbind(out, reshape::colsplit(out$Dur_Stress, split = "\\.", names = c("Stress","Dur_msec")))
 	  out$Dur_msec <- as.numeric(out$Dur_msec)
