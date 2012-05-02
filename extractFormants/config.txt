@@ -4,4 +4,3 @@ measurementPointMethod=third
 nSmoothing=12
 remeasurement=T
 candidates=T
-multipleFiles=T
