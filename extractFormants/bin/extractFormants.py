@@ -1614,8 +1614,8 @@ def extractFormants(wavInput, tgInput, output, opts, SPATH='', PPATH=''):
         checkTextGridFile(tgFile)
 
         # this will be used for the temporary files that we write
-        fileStem = wavFile.replace('.wav', '')
   
+        fileStem = os.path.basename(wavFile).replace('.wav', '')
         # load the information from the TextGrid file with the word and phone alignments
         tg = praat.TextGrid()
         tg.read(tgFile)
