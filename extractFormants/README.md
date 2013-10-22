@@ -1,0 +1,1 @@
+extractFormants in this repository is deprecated. See [JoFrhwld/FAVE](https://github.com/JoFrhwld/FAVE) instead.
